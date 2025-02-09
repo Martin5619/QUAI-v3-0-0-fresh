@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                       String        @id @default(auto()) @map("_id") @db.ObjectId
+  name                     String?
+  email                    String?       @unique
+  emailVerified           DateTime?
+  password                 String?
+  image                    String?
+  isAdmin                  Boolean       @default(false)
+  role                     String        @default("user")
+  plan                     String        @default("free")
+  stripeSubscriptionPlan  String?       @default("free")
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  accounts                Account[]
+  sessions                Session[]
+  usages                  Usage[]
+  documents               Document[]
+  questionSets            QuestionSet[]
+  attempts                QuestionSetAttempt[]
+  generations            Generation[]
+
+  @@map("users")
+}
+
+model Usage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  period    DateTime
+  documents Int      @default(0)
+  questions Int      @default(0)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+}
+
+model Document {
+  id           String                @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String                @db.ObjectId
+  title        String
+  content      String
+  fileType     String                @default("application/pdf")
+  status       String                @default("pending")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSets DocumentQuestionSet[]
+
+  @@map("documents")
+}
+
+model QuestionSet {
+  id               String                @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String                @db.ObjectId
+  title            String?
+  displayNumber    Int                   // Required field for sequential numbering
+  customPrompt     String?
+  guidance         String?               // Guidance for users taking the quiz
+  questionTypes    String[]
+  difficulty       String
+  numberOfQuestions Int
+  status          String                @default("pending")
+  error           String?
+  progress        Int                   @default(0)
+  rawResponse     String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       DocumentQuestionSet[]
+  questions       Question[]
+  attempts        QuestionSetAttempt[]
+  generations     Generation[]          // Keep as many-to-many for now
+
+  @@map("question_sets")
+}
+
+model Question {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  questionSetId String     @db.ObjectId
+  type          String
+  question      String
+  correctAnswer String
+  explanation   String?
+  options       String[]
+  difficulty    String
+  tags          String[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  questionSet   QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+
+  @@map("questions")
+}
+
+model Generation {
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String      @db.ObjectId
+  questionSetId    String      @db.ObjectId
+  generationNumber Int
+  status          String      @default("pending")
+  settings        Json?       // Store generation parameters for reuse
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSet     QuestionSet @relation(fields: [questionSetId], references: [id])
+
+  @@unique([userId, generationNumber])
+  @@map("generations_v2")
+}
+
+model DocumentQuestionSet {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  documentId    String      @db.ObjectId
+  questionSetId String      @db.ObjectId
+  document      Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  questionSet   QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([documentId, questionSetId])
+  @@map("document_question_sets")
+}
+
+model QuestionSetAttempt {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  questionSetId  String      @db.ObjectId
+  userId         String      @db.ObjectId
+  status         String      @default("IN_PROGRESS")  // IN_PROGRESS, COMPLETED
+  score          Float?      // Make score optional since it's not set until completion
+  startedAt      DateTime    @default(now())
+  completedAt    DateTime?   // Set when attempt is completed
+  totalQuestions Int
+  answers        Json[]      // Array of answer objects with isCorrect field
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSet    QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+
+  @@map("question_set_attempts")
+}
+
+model verification_tokens {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

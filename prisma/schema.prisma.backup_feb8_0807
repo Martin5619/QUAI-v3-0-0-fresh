@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Account_v2414 {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+  user              User_v2414    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts_v2414")
+}
+
+model Session_v2414 {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions_v2414")
+}
+
+model User_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  hashedPassword  String?
+  role            String    @default("USER")
+  plan            String    @default("free")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts        Account_v2414[]
+  sessions        Session_v2414[]
+  usage_v2414     Usage_v2414?
+  documents_v2414 Document_v2414[]
+  subscription_v2414 Subscription_v2414?  @relation("UserSubscription_v2414")
+  apiKeys_v2414   APIKey_v2414[]
+  quizAttempts_v2414 QuizAttempt_v2414[]
+  groupMemberships_v2414 GroupMember_v2414[]
+  createdGroups_v2414 Group_v2414[] @relation("GroupCreator_v2414")
+  createdExams_v2414 Exam_v2414[] @relation("ExamCreator_v2414")
+  examAttempts_v2414 ExamAttempt_v2414[]
+  gradeBooks_v2414 GradeBook_v2414[] @relation("UserGradeBooks_v2414")
+
+  @@map("users_v2414")
+}
+
+model Usage_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId @unique
+  documentsCount  Int       @default(0)
+  questionsCount  Int       @default(0)
+  tokensUsed      Int       @default(0)
+  lastUpdated     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  user            User_v2414      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usages_v2414")
+}
+
+model Document_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  content         String
+  userId          String    @db.ObjectId
+  user            User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filePath        String?   // Path to the file on disk
+  mimeType        String?   // MIME type of the file
+  questionSets_v2414 QuestionSet_v2414[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("documents_v2414")
+}
+
+model QuestionSet_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  documentId      String    @db.ObjectId
+  document        Document_v2414  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  questions_v2414 Question_v2414[]
+  status_v2414    String    @default("pending")
+  error_v2414     String?
+  isPublic_v2414  Boolean   @default(false)
+  accessCode_v2414 String?  // For private quizzes
+  quizAttempts_v2414 QuizAttempt_v2414[]
+  examQuestionSets_v2414 ExamQuestionSet_v2414[]
+  sharedWithGroups_v2414 GroupQuestionSet_v2414[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("question_sets_v2414")
+}
+
+model Question_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  content         String    // Original content field maintained for backward compatibility
+  type_v2414      String    @default("multiple_choice")
+  questionText_v2414 String // The actual question text
+  options_v2414   String[]  // Array of possible answers
+  answer          String    // Original answer field maintained for backward compatibility
+  correctOption_v2414 String // Index of correct option (e.g., "A", "B", etc.)
+  explanation_v2414 String
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v2414  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  responses_v2414 QuestionResponse_v2414[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("questions_v2414")
+}
+
+model QuizAttempt_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v2414  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  status_v2414    String    @default("in_progress") // in_progress, completed
+  score_v2414     Float?    // Percentage score
+  responses_v2414 QuestionResponse_v2414[]
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  timeSpent_v2414 Int?     // Time spent in seconds
+  examAttemptId   String?   @db.ObjectId  // Optional - if this attempt is part of an exam
+  examAttempt     ExamAttempt_v2414?  @relation(fields: [examAttemptId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("quiz_attempts_v2414")
+}
+
+model QuestionResponse_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  quizAttemptId   String    @db.ObjectId
+  quizAttempt     QuizAttempt_v2414  @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  questionId      String    @db.ObjectId
+  question        Question_v2414  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption_v2414 String
+  isCorrect_v2414 Boolean
+  timeSpent_v2414 Int?     // Time spent on this question in seconds
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("question_responses_v2414")
+}
+
+model Subscription_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId @unique
+  user            User_v2414     @relation("UserSubscription_v2414", fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId String?  @unique
+  stripePriceId   String?
+  stripeSubscriptionId String? @unique
+  status          String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("subscriptions_v2414")
+}
+
+model APIKey_v2414 {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  user        User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  key         String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("api_keys_v2414")
+}
+
+model Exam_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String?
+  creatorId       String    @db.ObjectId
+  creator         User_v2414     @relation("ExamCreator_v2414", fields: [creatorId], references: [id], onDelete: Cascade)
+  gradeBookId     String?   @db.ObjectId
+  gradeBook       GradeBook_v2414? @relation("GradeBookExams_v2414", fields: [gradeBookId], references: [id])
+  timeLimit       Int?      // Time limit in minutes
+  totalPoints     Float
+  isPublic_v2414  Boolean   @default(false)
+  accessCode_v2414 String?  // For private exams
+  questionSets    ExamQuestionSet_v2414[]
+  attempts        ExamAttempt_v2414[]
+  sharedWithGroups_v2414 GroupExam_v2414[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("exams_v2414")
+}
+
+model ExamQuestionSet_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  examId          String    @db.ObjectId
+  exam            Exam_v2414     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v2414  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  order          Int
+  weight         Float     // Weight for scoring
+  timeLimit      Int?      // Optional per-question set time limit
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("exam_question_sets_v2414")
+}
+
+model ExamAttempt_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  examId          String    @db.ObjectId
+  exam            Exam_v2414     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  userId          String    @db.ObjectId
+  user            User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status_v2414    String    @default("in_progress") // in_progress, completed
+  score_v2414     Float?    // Percentage score
+  grade_v2414     String?   // Letter grade if using gradebook
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  timeSpent_v2414 Int?     // Time spent in seconds
+  questionSetAttempts_v2414 QuizAttempt_v2414[] // Reuse quiz attempts for individual question sets
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("exam_attempts_v2414")
+}
+
+model GradeBook_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  isDefault       Boolean   @default(false)
+  creatorId       String    @db.ObjectId
+  creator         User_v2414     @relation("UserGradeBooks_v2414", fields: [creatorId], references: [id], onDelete: Cascade)
+  ranges          GradeRange_v2414[]
+  exams           Exam_v2414[] @relation("GradeBookExams_v2414")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("grade_books_v2414")
+}
+
+model GradeRange_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  gradeBookId     String    @db.ObjectId
+  gradeBook       GradeBook_v2414  @relation(fields: [gradeBookId], references: [id], onDelete: Cascade)
+  grade           String    // e.g., "A", "B+", etc.
+  minScore        Float     // Minimum score for this grade (percentage)
+  maxScore        Float     // Maximum score for this grade (percentage)
+  description     String?   // Optional description of the grade range
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("grade_ranges_v2414")
+}
+
+model Group_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  type            String    @default("class") // class, team, or other
+  creatorId       String    @db.ObjectId
+  creator         User_v2414     @relation("GroupCreator_v2414", fields: [creatorId], references: [id], onDelete: Cascade)
+  members         GroupMember_v2414[]
+  questionSets    GroupQuestionSet_v2414[]
+  exams           GroupExam_v2414[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("groups_v2414")
+}
+
+model GroupMember_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v2414    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId          String    @db.ObjectId
+  user            User_v2414     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String    @default("student") // teacher, student, or member
+  joinedAt        DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_members_v2414")
+}
+
+model GroupQuestionSet_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v2414    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v2414  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  sharedAt        DateTime  @default(now())
+  expiresAt       DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_question_sets_v2414")
+}
+
+model GroupExam_v2414 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v2414    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  examId          String    @db.ObjectId
+  exam            Exam_v2414     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  sharedAt        DateTime  @default(now())
+  expiresAt       DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_exams_v2414")
+}
