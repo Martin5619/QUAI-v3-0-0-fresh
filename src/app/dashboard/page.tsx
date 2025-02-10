@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { auth } from "@/lib/auth"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { WelcomeMessage } from "@/components/dashboard/welcome-message"
@@ -12,7 +11,7 @@ import { getWelcomeChecklist_v2414 } from "@/lib/services/onboarding-service"
 import { getRecentActivity_v2414 } from "@/lib/services/user-settings-service"
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
+  const session = await auth()
   if (!session?.user) redirect("/auth/signin")
   if (!session.user.onboarded) redirect("/onboarding")
 

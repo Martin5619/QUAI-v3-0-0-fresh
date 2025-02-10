@@ -3,10 +3,13 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import bcrypt from 'bcryptjs'
 import { PrismaAdapter } from '@auth/prisma-adapter'
-import { prisma } from './prisma'
+import { prisma } from './db_v3'
+
+const crypto = require('crypto')
 
 if (!process.env.NEXTAUTH_SECRET) {
-  throw new Error('Please provide process.env.NEXTAUTH_SECRET')
+  process.env.NEXTAUTH_SECRET = crypto.randomBytes(32).toString('hex')
+  console.warn('NEXTAUTH_SECRET not set, using random value. This is not recommended for production.')
 }
 
 export const {
@@ -22,55 +25,23 @@ export const {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       async profile(profile) {
-        const existingUser = await prisma.user_v2414.findUnique({
-          where: { email: profile.email },
-          include: {
-            usage_v2414: true,
-            subscription_v2414: true
-          }
+        const existingUser = await prisma.user_v3.findUnique({
+          where: { email: profile.email }
         })
 
         if (!existingUser) {
-          const newUser = await prisma.user_v2414.create({
+          const newUser = await prisma.user_v3.create({
             data: {
               email: profile.email,
               name: profile.name,
-              role: 'USER',
-              plan: 'free',
-              usage_v2414: {
-                create: {
-                  documentsCount: 0,
-                  questionsCount: 0,
-                  tokensUsed: 0,
-                  lastUpdated: new Date()
-                }
-              }
-            },
-            include: {
-              usage_v2414: true,
-              subscription_v2414: true
+              role: 'STUDENT',
+              isVerified: true, // Google users are pre-verified
+              provider: 'google'
             }
           })
-          return {
-            id: newUser.id,
-            email: newUser.email,
-            name: newUser.name,
-            role: newUser.role,
-            plan: newUser.plan,
-            usage_v2414: newUser.usage_v2414,
-            subscription_v2414: newUser.subscription_v2414
-          }
+          return newUser
         }
-
-        return {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          role: existingUser.role,
-          plan: existingUser.plan,
-          usage_v2414: existingUser.usage_v2414,
-          subscription_v2414: existingUser.subscription_v2414
-        }
+        return existingUser
       }
     }),
     CredentialsProvider({
@@ -84,68 +55,47 @@ export const {
           throw new Error('Please enter your email and password')
         }
 
-        const user = await prisma.user_v2414.findUnique({
-          where: {
-            email: credentials.email.toLowerCase()
-          },
-          include: {
-            usage_v2414: true,
-            subscription_v2414: true
-          }
+        const user = await prisma.user_v3.findUnique({
+          where: { email: credentials.email }
         })
 
-        if (!user || !user.hashedPassword) {
-          throw new Error('Invalid email or password')
+        if (!user || !user.password) {
+          throw new Error('No user found with this email')
         }
 
-        const isValid = await bcrypt.compare(credentials.password, user.hashedPassword)
+        if (!user.isVerified) {
+          throw new Error('Please verify your email before signing in')
+        }
+
+        const isValid = await bcrypt.compare(credentials.password, user.password)
 
         if (!isValid) {
-          throw new Error('Invalid email or password')
+          throw new Error('Invalid password')
         }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          plan: user.plan,
-          usage_v2414: user.usage_v2414,
-          subscription_v2414: user.subscription_v2414
-        }
+        return user
       }
     })
   ],
   pages: {
-    signIn: '/auth/signin',
+    signIn: '/signin',
     error: '/auth/error'
   },
   session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    strategy: 'jwt'
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id
-        token.email = user.email
-        token.name = user.name
         token.role = user.role
-        token.plan = user.plan
-        token.usage_v2414 = user.usage_v2414
-        token.subscription_v2414 = user.subscription_v2414
+        token.id = user.id
       }
       return token
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id
-        session.user.email = token.email
-        session.user.name = token.name
-        session.user.role = token.role
-        session.user.plan = token.plan
-        session.user.usage_v2414 = token.usage_v2414
-        session.user.subscription_v2414 = token.subscription_v2414
+      if (session?.user) {
+        session.user.role = token.role as string
+        session.user.id = token.id as string
       }
       return session
     }

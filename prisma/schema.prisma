@@ -38,26 +38,32 @@ model Session_v3 {
 }
 
 model User_v3 {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role_v3   @default(STUDENT)
-  accounts      Account_v3[]
-  sessions      Session_v3[]
-  onboarding    OnboardingState_v3?
-  documents     Document_v3[]
-  usages        Usage_v3[]
-  quizAttempts_v3 QuizAttempt_v3[]
-  examAttempts_v3 ExamAttempt_v3[]
-  subscription_v3 Subscription_v3?  @relation("UserSubscription_v3")
-  apiKeys_v3   APIKey_v3[]
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+  role             Role_v3   @default(STUDENT)
+  accounts         Account_v3[]
+  sessions         Session_v3[]
+  onboarding       OnboardingState_v3?
+  documents        Document_v3[]
+  verificationToken String?
+  verificationExpiry DateTime?
+  isVerified       Boolean   @default(false)
+  provider         String?   @default("credentials")
+  usages           Usage_v3[]
+  quizAttempts_v3  QuizAttempt_v3[]
+  examAttempts_v3  ExamAttempt_v3[]
+  subscription_v3  Subscription_v3?  @relation("UserSubscription_v3")
+  apiKeys_v3      APIKey_v3[]
   groupMemberships_v3 GroupMember_v3[]
   createdGroups_v3 Group_v3[] @relation("GroupCreator_v3")
-  createdExams_v3 Exam_v3[] @relation("ExamCreator_v3")
-  gradeBooks_v3 GradeBook_v3[] @relation("UserGradeBooks_v3")
+  createdExams_v3  Exam_v3[] @relation("ExamCreator_v3")
+  gradeBooks_v3   GradeBook_v3[] @relation("UserGradeBooks_v3")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@map("users_v3")
 }

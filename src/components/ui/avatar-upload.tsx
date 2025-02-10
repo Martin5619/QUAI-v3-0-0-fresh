@@ -4,8 +4,7 @@ import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Icons } from "@/components/icons"
-import { User } from "lucide-react"
+import { UserIcon } from "@/components/ui/icons"
 
 interface AvatarUploadProps {
   value?: string
@@ -51,12 +50,12 @@ export const AvatarUpload = ({ value, onChange, className, userId }: AvatarUploa
         <Avatar className="h-24 w-24 cursor-pointer hover:opacity-75 transition-opacity">
           <AvatarImage src={preview} alt="Profile picture" />
           <AvatarFallback>
-            <User className="h-12 w-12 text-muted-foreground" />
+            <UserIcon className="h-12 w-12 text-muted-foreground" />
           </AvatarFallback>
         </Avatar>
         {isDragActive && (
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/80">
-            <Icons.upload className="h-8 w-8 text-muted-foreground animate-pulse" />
+            <UserIcon className="h-8 w-8 text-muted-foreground animate-pulse" />
           </div>
         )}
       </div>

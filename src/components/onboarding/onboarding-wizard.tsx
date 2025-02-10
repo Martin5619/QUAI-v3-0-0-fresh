@@ -1,134 +1,142 @@
-"use client"
+'use client'
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
 import { WelcomeStep } from "./steps/welcome-step"
 import { ProfileStep } from "./steps/profile-step"
-import { PlanStep } from "./steps/plan-step"
-import { TeamStep } from "./steps/team-step"
-import { LanguagesStep } from "./steps/languages-step"
-import { CompleteStep } from "./steps/complete-step"
-
-const STEPS = [
-  "welcome",
-  "profile",
-  "plan",
-  "team",
-  "languages",
-  "complete",
-] as const
-
-type Step = (typeof STEPS)[number]
+import { PreferencesStep } from "./steps/preferences-step"
+import { PlanSelectionStep } from "./steps/plan-selection-step"
+import { UsageOverviewStep } from "./steps/usage-overview-step"
+import { CompletionStep } from "./steps/completion-step"
 
 interface OnboardingWizardProps {
-  initialStep?: Step
-  userId: string
+  user: any
+  initialState?: any
 }
 
-export function OnboardingWizard({
-  initialStep = "welcome",
-  userId,
-}: OnboardingWizardProps) {
-  const router = useRouter()
-  const [currentStep, setCurrentStep] = useState<Step>(initialStep)
-  const [loading, setLoading] = useState(false)
+export function OnboardingWizard({ user, initialState }: OnboardingWizardProps) {
+  const [step, setStep] = useState(0)
+  const [data, setData] = useState({
+    role: '',
+    name: user?.name || '',
+    avatar: user?.image || '',
+    preferences: {},
+    plan: 'free',
+  })
 
-  const currentStepIndex = STEPS.indexOf(currentStep)
-  const progress = (currentStepIndex / (STEPS.length - 1)) * 100
-
-  const handleNext = async (data: any = {}) => {
-    setLoading(true)
-    try {
-      // If it's the complete step, just redirect to dashboard
-      if (currentStep === "complete") {
-        await fetch("/api/onboarding/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            step: currentStep,
-            data: { completed: true },
-          }),
-        })
-        router.push("/dashboard")
-        return
-      }
-
-      // Save step data for other steps
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step: currentStep,
-          data,
-        }),
-      })
-
-      // Move to next step
-      const nextIndex = currentStepIndex + 1
-      if (nextIndex < STEPS.length) {
-        setCurrentStep(STEPS[nextIndex])
-      }
-    } catch (error) {
-      console.error("Error saving onboarding data:", error)
-    } finally {
-      setLoading(false)
-    }
+  const handleSignOut = async () => {
+    await fetch('/api/auth/signout', { method: 'POST' })
+    window.location.href = '/'
   }
 
-  const handleSkip = async () => {
-    setLoading(true)
-    try {
-      await fetch("/api/onboarding/skip", {
-        method: "POST",
-      })
-      router.push("/dashboard")
-    } catch (error) {
-      console.error("Error skipping onboarding:", error)
-    } finally {
-      setLoading(false)
+  const steps = [
+    {
+      title: "Welcome",
+      component: WelcomeStep,
+      props: {
+        onNext: (stepData: any) => {
+          setData({ ...data, ...stepData })
+          setStep(step + 1)
+        },
+        onSkip: () => setStep(step + 1)
+      }
+    },
+    {
+      title: "Profile",
+      component: ProfileStep,
+      props: {
+        initialData: {
+          name: data.name,
+          avatar: data.avatar
+        },
+        onNext: (stepData: any) => {
+          setData({ ...data, ...stepData })
+          setStep(step + 1)
+        },
+        onBack: () => setStep(step - 1)
+      }
+    },
+    {
+      title: "Preferences",
+      component: PreferencesStep,
+      props: {
+        onNext: (stepData: any) => {
+          setData({ ...data, ...stepData })
+          setStep(step + 1)
+        },
+        onBack: () => setStep(step - 1)
+      }
+    },
+    {
+      title: "Plan",
+      component: PlanSelectionStep,
+      props: {
+        onNext: (stepData: any) => {
+          setData({ ...data, ...stepData })
+          setStep(step + 1)
+        },
+        onBack: () => setStep(step - 1)
+      }
+    },
+    {
+      title: "Usage",
+      component: UsageOverviewStep,
+      props: {
+        data: data,
+        onNext: (stepData: any) => {
+          setData({ ...data, ...stepData })
+          setStep(step + 1)
+        },
+        onBack: () => setStep(step - 1)
+      }
+    },
+    {
+      title: "Complete",
+      component: CompletionStep,
+      props: {
+        data: data,
+        onComplete: async () => {
+          // Save all data and redirect to dashboard
+          try {
+            await fetch('/api/user/onboarding', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            })
+            window.location.href = '/dashboard'
+          } catch (error) {
+            console.error('Failed to save onboarding data:', error)
+          }
+        }
+      }
     }
-  }
+  ]
+
+  const currentStep = steps[step]
+  const StepComponent = currentStep.component
+  const progress = ((step + 1) / steps.length) * 100
 
   return (
-    <div className="w-full max-w-3xl space-y-8 px-4 py-8">
-      <Progress value={progress} className="h-2" />
-
-      <Card className="p-6">
-        {currentStep === "welcome" && (
-          <WelcomeStep onNext={handleNext} onSkip={handleSkip} />
-        )}
-        {currentStep === "profile" && (
-          <ProfileStep onNext={handleNext} userId={userId} />
-        )}
-        {currentStep === "plan" && (
-          <PlanStep onNext={handleNext} userId={userId} />
-        )}
-        {currentStep === "team" && (
-          <TeamStep onNext={handleNext} userId={userId} />
-        )}
-        {currentStep === "languages" && (
-          <LanguagesStep onNext={handleNext} userId={userId} />
-        )}
-        {currentStep === "complete" && (
-          <CompleteStep onNext={handleNext} userId={userId} />
-        )}
-      </Card>
-
-      <div className="flex justify-between">
-        <Button
-          variant="ghost"
-          onClick={handleSkip}
-          disabled={loading || currentStep === "complete"}
-        >
-          Skip for now
-        </Button>
-        <div className="text-sm text-muted-foreground">
-          Step {currentStepIndex + 1} of {STEPS.length}
+    <Card className="w-full max-w-3xl p-6 md:p-8">
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-muted-foreground">
+            Step {step + 1} of {steps.length}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            className="text-muted-foreground"
+          >
+            Sign Out
+          </Button>
         </div>
+        <Progress value={progress} className="h-2" />
       </div>
-    </div>
+      <StepComponent {...currentStep.props} />
+    </Card>
   )
 }
