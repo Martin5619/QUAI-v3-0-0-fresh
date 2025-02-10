@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { Role_v3, Prisma } from "@prisma/client"
+import { db } from "@/lib/db_v3_2"
+import { Role_v3_2, Plan_v3_2, Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 
@@ -17,30 +17,12 @@ const registerSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  console.log("Starting registration process")
-
   try {
-    // 1. Parse request body
-    const rawBody = await req.text()
-    console.log("Raw request body:", rawBody)
-
-    let body
-    try {
-      body = JSON.parse(rawBody)
-    } catch (parseError) {
-      console.error("Failed to parse request body:", parseError)
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 }
-      )
-    }
-
-    // 2. Validate data
-    console.log("Validating request data:", { ...body, password: "[REDACTED]" })
+    // 1. Parse and validate request body
+    const body = await req.json()
     
     const validationResult = registerSchema.safeParse(body)
     if (!validationResult.success) {
-      console.error("Validation error:", validationResult.error)
       return NextResponse.json(
         { error: validationResult.error.errors[0].message },
         { status: 400 }
@@ -49,36 +31,31 @@ export async function POST(req: Request) {
 
     const { email, password, name } = validationResult.data
 
-    // 3. Check if user exists
-    console.log("Checking if user exists:", email)
+    // 2. Check if user exists
+    const existingUser = await db.user_v3_2.findUnique({
+      where: { email }
+    })
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: "An account with this email already exists" },
+        { status: 400 }
+      )
+    }
+
+    // 3. Create user with all required relations
+    const hashedPassword = await bcrypt.hash(password, 12)
     
     try {
-      const existingUser = await db.user_v3.findUnique({
-        where: { email }
-      })
-
-      if (existingUser) {
-        console.log("User already exists:", email)
-        return NextResponse.json(
-          { error: "An account with this email already exists" },
-          { status: 400 }
-        )
-      }
-
-      // 4. Create user with onboarding state
-      console.log("Creating new user:", email)
-      
-      const hashedPassword = await bcrypt.hash(password, 12)
-      
       const user = await db.$transaction(async (tx) => {
-        // Create user with all required relations
-        const newUser = await tx.user_v3.create({
+        const newUser = await tx.user_v3_2.create({
           data: {
             email,
             password: hashedPassword,
             name,
-            role: Role_v3.PERSONAL_USER, // Default to personal user for free tier
-            emailVerified: new Date(),
+            role: Role_v3_2.PERSONAL_USER,
+            plan: Plan_v3_2.FREE,
+            emailVerified: new Date(), // Auto-verify for now
             usage: {
               create: {
                 documentsCount: 0,
@@ -103,15 +80,15 @@ export async function POST(req: Request) {
         return newUser
       })
 
-      console.log("User created successfully:", { id: user.id, email: user.email })
-
       return NextResponse.json(
         {
           success: true,
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            name: user.name,
+            role: user.role,
+            plan: user.plan
           }
         },
         { status: 201 }
@@ -128,16 +105,10 @@ export async function POST(req: Request) {
         }
       }
       
-      return NextResponse.json(
-        { 
-          error: "Database error",
-          details: dbError instanceof Error ? dbError.message : "Unknown error"
-        },
-        { status: 500 }
-      )
+      throw dbError
     }
   } catch (error) {
-    console.error("Unhandled registration error:", error)
+    console.error("Registration error:", error)
     
     return NextResponse.json(
       { 

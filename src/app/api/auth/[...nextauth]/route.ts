@@ -4,10 +4,10 @@ import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
-import { prisma } from "@/lib/db_v3"
+import { db } from "@/lib/db"
 
 export const { handlers: { GET, POST }, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(db),
   session: {
     strategy: "jwt",
   },
@@ -40,7 +40,7 @@ export const { handlers: { GET, POST }, auth } = NextAuth({
           throw new Error("Please enter your email and password")
         }
 
-        const user = await prisma.user_v3.findUnique({
+        const user = await db.user_v3.findUnique({
           where: { email: credentials.email }
         })
 

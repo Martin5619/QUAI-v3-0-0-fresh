@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Core user model with essential fields
+model User_v3_2 {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String    @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  role          Role_v3_2 @default(PERSONAL_USER)
+  plan          Plan_v3_2 @default(FREE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account_v3_2[]
+  sessions      Session_v3_2[]
+  onboarding    OnboardingState_v3_2?
+  usage         Usage_v3_2?
+  documents     Document_v3_2[]
+  apiKeys       APIKey_v3_2[]
+
+  @@map("users_v3_2")
+}
+
+// Authentication-related models
+model Account_v3_2 {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User_v3_2 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts_v3_2")
+}
+
+model Session_v3_2 {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User_v3_2  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions_v3_2")
+}
+
+// Usage tracking
+model Usage_v3_2 {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @db.ObjectId @unique
+  documentsCount Int       @default(0)
+  questionsCount Int       @default(0)
+  storageUsed    Int       @default(0)  // In bytes
+  tokensUsed     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User_v3_2 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage_v3_2")
+}
+
+// Document management
+model Document_v3_2 {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  content     String
+  userId      String    @db.ObjectId
+  filePath    String?   // Path to the file on disk
+  mimeType    String?   // MIME type of the file
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User_v3_2 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("documents_v3_2")
+}
+
+// Onboarding state tracking
+model OnboardingState_v3_2 {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId @unique
+  currentStep Int       @default(1)
+  isComplete  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Onboarding preferences
+  selectedRole Role_v3_2?  // Can be changed during onboarding
+  selectedPlan Plan_v3_2?  // Can be changed during onboarding
+
+  user User_v3_2 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_v3_2")
+}
+
+// API key management
+model APIKey_v3_2 {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  name        String
+  key         String    @unique
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User_v3_2 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys_v3_2")
+}
+
+// Enums
+enum Role_v3_2 {
+  PERSONAL_USER    // Default role for free tier
+  STUDENT
+  TEACHER
+  CORPORATE_USER
+  ADMINISTRATOR
+  DEVELOPER
+}
+
+enum Plan_v3_2 {
+  FREE            // Default plan
+  PERSONAL_PRO
+  TEAM
+  ENTERPRISE
+}

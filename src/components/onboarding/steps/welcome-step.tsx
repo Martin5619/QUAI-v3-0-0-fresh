@@ -1,154 +1,126 @@
-'use client'
-
+import React from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { FileText, GraduationCap, School, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { 
-  UserIcon as IconsUser, 
-  GraduationCapIcon as IconsGraduationCap, 
-  TeacherIcon as IconsTeacher, 
-  SchoolIcon as IconsSchool, 
-  BuildingIcon as IconsBuilding 
-} from "@/components/ui/icons"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Role_v3 } from "@prisma/client"
 
 interface WelcomeStepProps {
-  onNext: (data: { role: string }) => void
-  onSkip: () => void
+  data: {
+    role: Role_v3 | ""
+  }
+  onUpdate: (data: any) => void
+  onNext: () => void
+  isLoading: boolean
 }
 
-export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
+export function WelcomeStep({ data, onUpdate, onNext, isLoading }: WelcomeStepProps) {
+  const handleRoleSelect = (roleId: Role_v3) => {
+    console.log("[ONBOARDING] Selected role:", roleId)
+    onUpdate({ role: roleId })
+  }
+
+  const handleContinue = () => {
+    console.log("[ONBOARDING] Continue clicked, role:", data.role)
+    onNext()
+  }
+
+  const roles = [
+    {
+      id: "PERSONAL_USER" as Role_v3,
+      title: "Personal User",
+      description: "Use QUAi for personal learning and document analysis",
+      icon: FileText,
+      features: [
+        "Upload and analyze documents",
+        "Ask questions about your content",
+        "Get AI-powered insights",
+        "Track your learning progress"
+      ]
+    },
+    {
+      id: "STUDENT" as Role_v3,
+      title: "Student",
+      description: "Enhance your learning with AI assistance",
+      icon: GraduationCap,
+      features: [
+        "Study materials analysis",
+        "Homework assistance",
+        "Test preparation",
+        "Learning progress tracking"
+      ]
+    },
+    {
+      id: "TEACHER" as Role_v3,
+      title: "Teacher",
+      description: "Empower your teaching with AI tools",
+      icon: School,
+      features: [
+        "Create learning materials",
+        "Grade assignments",
+        "Track student progress",
+        "Personalize learning paths"
+      ]
+    },
+    {
+      id: "LEARNING_MANAGER" as Role_v3,
+      title: "Learning Manager",
+      description: "Manage educational programs and teams",
+      icon: Users,
+      features: [
+        "Team management",
+        "Resource allocation",
+        "Progress monitoring",
+        "Analytics and reporting"
+      ]
+    }
+  ]
+
   return (
-    <div className="mx-auto w-full space-y-8">
-      <div className="space-y-4 text-center">
-        <h1 className="text-4xl font-bold tracking-tight">Welcome to QUAi</h1>
-        <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-          Let&apos;s get started by understanding how you&apos;ll be using QUAi
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card 
-          className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
-          onClick={() => onNext({ role: "PERSONAL" })}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconsUser className="h-5 w-5" />
-              Personal User
-            </CardTitle>
-            <CardDescription>
-              Explore QUAi for personal use or evaluate for your organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-4 text-sm text-muted-foreground">
-              <li>Learn and practice at your own pace</li>
-              <li>Access to core features</li>
-              <li>Basic support</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
-          onClick={() => onNext({ role: "STUDENT" })}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconsGraduationCap className="h-5 w-5" />
-              Student
-            </CardTitle>
-            <CardDescription>
-              Learn and take quizzes as part of your class
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-4 text-sm text-muted-foreground">
-              <li>Access class materials</li>
-              <li>Take quizzes and assessments</li>
-              <li>Track your progress</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
-          onClick={() => onNext({ role: "TEACHER" })}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconsTeacher className="h-5 w-5" />
-              Teacher
-            </CardTitle>
-            <CardDescription>
-              Create quizzes and manage your classes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-4 text-sm text-muted-foreground">
-              <li>Create and manage courses</li>
-              <li>Generate assessments</li>
-              <li>Track student progress</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
-          onClick={() => onNext({ role: "LEARNING_MANAGER" })}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconsSchool className="h-5 w-5" />
-              Learning Manager
-            </CardTitle>
-            <CardDescription>
-              Manage teachers and curriculum for your institution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-4 text-sm text-muted-foreground">
-              <li>Oversee multiple classes</li>
-              <li>Manage teacher accounts</li>
-              <li>Track institutional progress</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer transition-all hover:border-primary hover:shadow-md md:col-span-2"
-          onClick={() => onNext({ role: "ENTERPRISE" })}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconsBuilding className="h-5 w-5" />
-              Enterprise
-            </CardTitle>
-            <CardDescription>
-              Deploy QUAi across your organization with custom integrations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-4 text-sm text-muted-foreground">
-              <li>Custom deployment options</li>
-              <li>Advanced security features</li>
-              <li>Dedicated support team</li>
-              <li>API access and integrations</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-center pt-4">
-        <Button variant="ghost" onClick={onSkip}>
-          Skip for now
-        </Button>
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Welcome to QUAi!</CardTitle>
+        <CardDescription>
+          Let's get started by selecting your role. This will help us personalize your experience.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2">
+          {roles.map((role) => (
+            <Card
+              key={role.id}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                data.role === role.id ? 'ring-2 ring-primary' : ''
+              }`}
+              onClick={() => handleRoleSelect(role.id)}
+            >
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <role.icon className="h-5 w-5" />
+                  <CardTitle className="text-lg">{role.title}</CardTitle>
+                </div>
+                <CardDescription>{role.description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc pl-4 space-y-1">
+                  {role.features.map((feature, index) => (
+                    <li key={index} className="text-sm text-muted-foreground">
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-end">
+          <Button
+            onClick={handleContinue}
+            disabled={!data.role || isLoading}
+          >
+            {isLoading ? "Setting up..." : "Continue"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

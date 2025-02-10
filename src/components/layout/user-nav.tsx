@@ -1,9 +1,9 @@
 "use client"
 
-import { signOut } from "next-auth/react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Icons } from "@/components/icons"
+import { useRouter } from "next/navigation"
 
 interface UserNavProps {
   user?: {
@@ -14,6 +14,27 @@ interface UserNavProps {
 }
 
 export function UserNav({ user }: UserNavProps) {
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    try {
+      const response = await fetch("/api/auth/signout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to sign out")
+      }
+
+      router.push("/auth/signin")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
   return (
     <div className="flex items-center gap-4">
       <Button
@@ -35,7 +56,7 @@ export function UserNav({ user }: UserNavProps) {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => signOut({ callbackUrl: "/" })}
+        onClick={handleSignOut}
       >
         <Icons.logout className="mr-2 h-4 w-4" />
         Sign out

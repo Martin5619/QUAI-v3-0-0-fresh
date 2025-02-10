@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from "react"
+import React from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, ArrowLeft } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 
 interface PlanSelectionStepProps {
-  onNext: (data: any) => void
+  data: any
+  onUpdate: (data: any) => void
   onBack: () => void
 }
 
@@ -57,13 +58,8 @@ const plans = [
   }
 ]
 
-export function PlanSelectionStep({ onNext, onBack }: PlanSelectionStepProps) {
-  const [selectedPlan, setSelectedPlan] = useState('free')
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onNext({ plan: selectedPlan })
-  }
+export function PlanSelectionStep({ data, onUpdate, onBack }: PlanSelectionStepProps) {
+  const [selectedPlan, setSelectedPlan] = React.useState(data.plan || 'free')
 
   return (
     <div className="space-y-6">
@@ -74,41 +70,46 @@ export function PlanSelectionStep({ onNext, onBack }: PlanSelectionStepProps) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <RadioGroup value={selectedPlan} onValueChange={setSelectedPlan}>
-          <div className="grid gap-4 md:grid-cols-3">
-            {plans.map((plan) => (
-              <Card key={plan.id} className={`relative p-6 ${selectedPlan === plan.id ? 'border-primary' : ''}`}>
-                <RadioGroupItem
-                  value={plan.id}
-                  id={plan.id}
-                  className="absolute right-4 top-4"
-                />
-                <div className="space-y-4">
-                  <h3 className="font-bold">{plan.name}</h3>
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
-                  <p className="text-2xl font-bold">{plan.price}</p>
-                  <ul className="space-y-2 text-sm">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-center">
-                        <CheckIcon className="mr-2 h-4 w-4 text-primary" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </RadioGroup>
-
-        <div className="flex justify-between pt-4">
-          <Button type="button" variant="outline" onClick={onBack}>
-            Back
-          </Button>
-          <Button type="submit">Continue</Button>
+      <RadioGroup value={selectedPlan} onValueChange={setSelectedPlan}>
+        <div className="grid gap-4 md:grid-cols-3">
+          {plans.map((plan) => (
+            <Card key={plan.id} className={`relative p-6 ${selectedPlan === plan.id ? 'border-primary' : ''}`}>
+              <RadioGroupItem
+                value={plan.id}
+                id={plan.id}
+                className="absolute right-4 top-4"
+              />
+              <div className="space-y-4">
+                <h3 className="font-bold">{plan.name}</h3>
+                <p className="text-sm text-muted-foreground">{plan.description}</p>
+                <p className="text-2xl font-bold">{plan.price}</p>
+                <ul className="space-y-2 text-sm">
+                  {plan.features.map((feature, i) => (
+                    <li key={i} className="flex items-center">
+                      <CheckIcon className="mr-2 h-4 w-4 text-primary" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Card>
+          ))}
         </div>
-      </form>
+      </RadioGroup>
+
+      <div className="flex justify-between">
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="flex items-center"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <Button onClick={() => onUpdate({ plan: selectedPlan })}>
+          Continue
+        </Button>
+      </div>
     </div>
   )
 }

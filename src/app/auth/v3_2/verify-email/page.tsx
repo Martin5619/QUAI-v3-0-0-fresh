@@ -22,7 +22,7 @@ export default function VerifyEmailPage() {
         }
 
         const { email, password } = JSON.parse(storedData)
-        
+
         // Attempt to sign in
         const result = await signIn("credentials", {
           email,
@@ -34,16 +34,14 @@ export default function VerifyEmailPage() {
         sessionStorage.removeItem('pendingSignup')
 
         if (result?.error) {
-          setError(result.error)
-          setIsLoading(false)
-          return
+          throw new Error(result.error)
         }
 
         // Redirect to onboarding
-        router.push("/onboarding")
+        router.push("/onboarding/v3_2")
       } catch (err) {
         console.error("Auto sign-in error:", err)
-        setError("Failed to complete registration")
+        setError(err instanceof Error ? err.message : "Failed to complete registration")
         setIsLoading(false)
       }
     }
@@ -60,7 +58,7 @@ export default function VerifyEmailPage() {
           <p className="mb-4 mt-2 text-muted-foreground">{error}</p>
           <button
             className="text-primary hover:underline"
-            onClick={() => router.push("/auth/signin")}
+            onClick={() => router.push("/auth/v3_2/signin")}
           >
             Back to Sign In
           </button>

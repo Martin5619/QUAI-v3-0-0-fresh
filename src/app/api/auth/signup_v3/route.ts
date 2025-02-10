@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
-import { prisma } from '@/lib/db_v3'
+import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 
 const signupSchema = z.object({
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const { email, password, name } = signupSchema.parse(body)
 
     // Check if user already exists
-    const existingUser = await prisma.user_v3.findUnique({
+    const existingUser = await db.user_v3.findUnique({
       where: { email }
     })
 
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     verificationExpiry.setHours(verificationExpiry.getHours() + 24)
 
     // Create user
-    const user = await prisma.user_v3.create({
+    const user = await db.user_v3.create({
       data: {
         email,
         password: hashedPassword,

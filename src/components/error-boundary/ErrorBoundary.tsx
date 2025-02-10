@@ -29,28 +29,28 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo)
+    console.error('[ERROR_BOUNDARY]', error, errorInfo)
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, error: undefined })
+    window.location.reload()
   }
 
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900 mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-300" />
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center p-8 rounded-lg bg-card shadow-lg">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10 mb-4">
+              <AlertCircle className="w-8 h-8 text-destructive" />
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-semibold text-foreground mb-2">
               Something went wrong
             </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              {this.state.error?.message || 'An unexpected error occurred'}
+            <p className="text-muted-foreground mb-6 max-w-md">
+              {this.state.error?.message || 'An unexpected error occurred. Please try again.'}
             </p>
-            <Button
+            <Button 
               onClick={this.handleRetry}
               className="inline-flex items-center"
             >

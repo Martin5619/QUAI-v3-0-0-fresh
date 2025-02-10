@@ -1,18 +1,19 @@
 "use client"
 
-import { signIn } from "next-auth/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { signIn } from "next-auth/react"
+import { ErrorBoundary } from "@/components/error-boundary"
 
-export default function SignUpPage() {
+function SignUpForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
@@ -21,43 +22,56 @@ export default function SignUpPage() {
     e.preventDefault()
     try {
       setLoading(true)
-      console.log("Submitting registration:", { email, password: "***" })
+      console.log("Starting registration process...")
 
+      // 1. Register user
       const res = await fetch("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+        }),
       })
 
       console.log("Registration response status:", res.status)
-      const data = await res.json()
-      console.log("Registration response data:", data)
-      
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to register")
+
+      // Try to parse response even if status is not ok
+      let data
+      try {
+        const text = await res.text()
+        console.log("Raw response:", text)
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error("Failed to parse response:", parseError)
+        throw new Error("Invalid server response")
       }
 
-      console.log("Registration successful, attempting sign in")
-      const signInResult = await signIn("credentials", {
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to register")
+      }
+
+      // 2. Store credentials for verification
+      sessionStorage.setItem('pendingSignup', JSON.stringify({
         email,
-        password,
-        redirect: false,
+        password
+      }))
+
+      toast({
+        title: "Account created!",
+        description: "Redirecting to verification...",
       })
 
-      if (signInResult?.error) {
-        throw new Error(signInResult.error)
-      }
-
-      router.push("/onboarding")
-    } catch (error: any) {
+      // 3. Redirect to verify-email page
+      router.push("/auth/verify-email")
+    } catch (err) {
+      console.error("Signup error:", err)
       toast({
         title: "Error",
-        description: error.message,
+        description: err instanceof Error ? err.message : "Something went wrong",
         variant: "destructive",
       })
     } finally {
@@ -96,17 +110,27 @@ export default function SignUpPage() {
           <form onSubmit={onSubmit}>
             <div className="grid gap-2">
               <div className="grid gap-1">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder="John Doe"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+              <div className="grid gap-1">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   placeholder="name@example.com"
                   type="email"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect="off"
-                  disabled={loading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  required
                 />
               </div>
               <div className="grid gap-1">
@@ -115,9 +139,10 @@ export default function SignUpPage() {
                   id="password"
                   placeholder="Enter your password"
                   type="password"
-                  disabled={loading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  required
                 />
               </div>
               <Button disabled={loading}>
@@ -155,5 +180,13 @@ export default function SignUpPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SignUpPage() {
+  return (
+    <ErrorBoundary>
+      <SignUpForm />
+    </ErrorBoundary>
   )
 }

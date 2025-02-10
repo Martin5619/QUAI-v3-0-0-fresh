@@ -1,55 +1,72 @@
 'use client'
 
 import { Button } from "@/components/ui/button"
-import { CheckIcon } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Icons } from "@/components/ui/icons"
+import { Loader2 } from "lucide-react"
 
 interface CompletionStepProps {
   data: any
-  onComplete: () => void
+  onComplete: () => Promise<void>
+  isLoading: boolean
 }
 
-export function CompletionStep({ data, onComplete }: CompletionStepProps) {
+export function CompletionStep({ data, onComplete, isLoading }: CompletionStepProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-2 text-center">
-        <div className="mx-auto h-12 w-12 rounded-full bg-green-100 p-2 dark:bg-green-900">
-          <CheckIcon className="h-8 w-8 text-green-500" />
-        </div>
-        <h1 className="text-3xl font-bold">All Set!</h1>
+        <Icons.check className="mx-auto h-12 w-12 text-primary" />
+        <h1 className="text-2xl font-semibold tracking-tight">
+          You're All Set!
+        </h1>
         <p className="text-muted-foreground">
-          Your QUAi account is ready to go
+          Your preferences have been saved. Let's start exploring QUAi!
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div className="rounded-lg border p-4">
-          <h3 className="font-medium">Account Summary</h3>
-          <dl className="mt-2 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Name:</dt>
-              <dd className="font-medium">{data.name}</dd>
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-medium">Selected Plan</h3>
+            <p className="text-sm text-muted-foreground capitalize">
+              {data.plan} Plan
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium">Role</h3>
+            <p className="text-sm text-muted-foreground capitalize">
+              {data.role}
+            </p>
+          </div>
+          {data.preferences && (
+            <div>
+              <h3 className="font-medium">Preferences</h3>
+              <ul className="list-disc list-inside text-sm text-muted-foreground">
+                {Object.entries(data.preferences).map(([key, value]) => (
+                  <li key={key} className="capitalize">
+                    {key.replace(/_/g, ' ')}: {String(value)}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Theme:</dt>
-              <dd className="font-medium">{data.preferences.theme}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Notifications:</dt>
-              <dd className="font-medium">{data.preferences.notifications}</dd>
-            </div>
-          </dl>
+          )}
         </div>
+      </Card>
 
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950">
-          <p className="text-sm text-green-800 dark:text-green-200">
-            Your profile has been created successfully. Click below to start using QUAi!
-          </p>
-        </div>
-      </div>
-
-      <div className="pt-4">
-        <Button onClick={onComplete} className="w-full">
-          Go to Dashboard
+      <div className="flex justify-center">
+        <Button
+          onClick={onComplete}
+          disabled={isLoading}
+          className="w-full sm:w-auto"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Go to Dashboard'
+          )}
         </Button>
       </div>
     </div>

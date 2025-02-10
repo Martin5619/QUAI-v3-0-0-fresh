@@ -4,19 +4,37 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ArrowLeft } from "lucide-react"
 
 interface PreferencesStepProps {
-  onNext: (data: any) => void
+  data: any
+  onUpdate: (data: any) => void
   onBack: () => void
 }
 
-export function PreferencesStep({ onNext, onBack }: PreferencesStepProps) {
-  const [theme, setTheme] = useState('light')
-  const [notifications, setNotifications] = useState('all')
+const languages = [
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Español' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'it', label: 'Italiano' },
+  { value: 'pt', label: 'Português' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'zh', label: '中文' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' }
+]
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onNext({ preferences: { theme, notifications } })
+export function PreferencesStep({ data, onUpdate, onBack }: PreferencesStepProps) {
+  const [preferences, setPreferences] = useState({
+    theme: data.preferences?.theme || 'system',
+    notifications: data.preferences?.notifications || 'important',
+    language: data.preferences?.language || 'en'
+  })
+
+  const handleUpdate = (key: string, value: string) => {
+    const newPreferences = { ...preferences, [key]: value }
+    setPreferences(newPreferences)
   }
 
   return (
@@ -28,10 +46,13 @@ export function PreferencesStep({ onNext, onBack }: PreferencesStepProps) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         <div className="space-y-4">
           <Label>Theme Preference</Label>
-          <RadioGroup value={theme} onValueChange={setTheme}>
+          <RadioGroup 
+            value={preferences.theme} 
+            onValueChange={(value) => handleUpdate('theme', value)}
+          >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="light" id="light" />
               <Label htmlFor="light">Light</Label>
@@ -49,7 +70,10 @@ export function PreferencesStep({ onNext, onBack }: PreferencesStepProps) {
 
         <div className="space-y-4">
           <Label>Notification Preferences</Label>
-          <RadioGroup value={notifications} onValueChange={setNotifications}>
+          <RadioGroup 
+            value={preferences.notifications} 
+            onValueChange={(value) => handleUpdate('notifications', value)}
+          >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="all" id="all" />
               <Label htmlFor="all">All Notifications</Label>
@@ -65,13 +89,36 @@ export function PreferencesStep({ onNext, onBack }: PreferencesStepProps) {
           </RadioGroup>
         </div>
 
-        <div className="flex justify-between pt-4">
-          <Button type="button" variant="outline" onClick={onBack}>
-            Back
-          </Button>
-          <Button type="submit">Continue</Button>
+        <div className="space-y-4">
+          <Label>Language</Label>
+          <RadioGroup 
+            value={preferences.language} 
+            onValueChange={(value) => handleUpdate('language', value)}
+            className="grid grid-cols-2 gap-4"
+          >
+            {languages.map((lang) => (
+              <div key={lang.value} className="flex items-center space-x-2">
+                <RadioGroupItem value={lang.value} id={`lang-${lang.value}`} />
+                <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
+              </div>
+            ))}
+          </RadioGroup>
         </div>
-      </form>
+      </div>
+
+      <div className="flex justify-between">
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="flex items-center"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <Button onClick={() => onUpdate({ preferences })}>
+          Continue
+        </Button>
+      </div>
     </div>
   )
 }

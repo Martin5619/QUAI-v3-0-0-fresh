@@ -48,12 +48,8 @@ model User_v3 {
   accounts         Account_v3[]
   sessions         Session_v3[]
   onboarding       OnboardingState_v3?
+  usage            Usage_v3?
   documents        Document_v3[]
-  verificationToken String?
-  verificationExpiry DateTime?
-  isVerified       Boolean   @default(false)
-  provider         String?   @default("credentials")
-  usages           Usage_v3[]
   quizAttempts_v3  QuizAttempt_v3[]
   examAttempts_v3  ExamAttempt_v3[]
   subscription_v3  Subscription_v3?  @relation("UserSubscription_v3")
@@ -74,10 +70,12 @@ model Usage_v3 {
   user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
   documentsCount  Int       @default(0)
   questionsCount  Int       @default(0)
-  lastUpdated     DateTime  @updatedAt
+  storageUsed     Int       @default(0)  // In bytes
+  tokensUsed      Int       @default(0)
   createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@map("usages_v3")
+  @@map("usage_v3")
 }
 
 model Document_v3 {
@@ -335,16 +333,13 @@ model GroupExam_v3 {
 }
 
 model OnboardingState_v3 {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String    @unique @db.ObjectId
-  user          User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentStep   String    @default("welcome")
-  isComplete    Boolean   @default(false)
-  language      String?
-  teamSize      String?
-  profileData   Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId @unique
+  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentStep     Int       @default(1)
+  isComplete      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("onboarding_states_v3")
 }
@@ -355,4 +350,11 @@ enum Role_v3 {
   LEARNING_MANAGER
   STUDENT
   CORPORATE_USER
+  PERSONAL_USER
+  INSTITUTION
+  ADMINISTRATOR
+  DEVELOPER
+  SUPPORT
+  ANALYST
+  MANAGER
 }

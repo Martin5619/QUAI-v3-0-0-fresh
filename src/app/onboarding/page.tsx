@@ -1,15 +1,27 @@
-'use server'
+'use client'
 
-import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { OnboardingWrapper } from "@/components/onboarding/onboarding-wrapper"
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard"
 
-export default async function OnboardingPage() {
-  const session = await auth()
-    
-  if (!session?.user) {
-    redirect('/auth/signin')
+export default function OnboardingPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin')
+    }
+  }, [status, router])
+
+  if (status === 'loading') {
+    return <div>Loading...</div>
   }
 
-  return <OnboardingWrapper user={session.user} />
+  if (!session?.user) {
+    return null
+  }
+
+  return <OnboardingWizard user={session.user} />
 }

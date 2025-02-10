@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db_v3'
+import { db } from '@/lib/db'
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
 
     // Find user with matching verification token
-    const user = await prisma.user_v3.findFirst({
+    const user = await db.user_v3.findFirst({
       where: {
         verificationToken: token,
         verificationExpiry: {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     }
 
     // Update user as verified
-    await prisma.user_v3.update({
+    await db.user_v3.update({
       where: { id: user.id },
       data: {
         isVerified: true,

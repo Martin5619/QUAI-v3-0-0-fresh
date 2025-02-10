@@ -1,54 +1,54 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { db } from "@/lib/db"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { WelcomeMessage } from "@/components/dashboard/welcome-message"
-import { ProjectsOverview } from "@/components/dashboard/projects-overview"
-import { RecentActivity } from "@/components/dashboard/recent-activity"
-import { TeamOverview } from "@/components/dashboard/team-overview"
-import { TranslationStats } from "@/components/dashboard/translation-stats"
-import { getWelcomeChecklist_v2414 } from "@/lib/services/onboarding-service"
-import { getRecentActivity_v2414 } from "@/lib/services/user-settings-service"
+import { DocumentsOverview } from "@/components/dashboard/documents-overview"
+import { UsageMetrics } from "@/components/dashboard/usage-metrics"
+import { RecentQuestions } from "@/components/dashboard/recent-questions"
+import { UpgradeCard } from "@/components/dashboard/upgrade-card"
 
 export default async function DashboardPage() {
   const session = await auth()
   if (!session?.user) redirect("/auth/signin")
-  if (!session.user.onboarded) redirect("/onboarding")
 
-  const [checklist, activity] = await Promise.all([
-    getWelcomeChecklist_v2414(session.user.id),
-    getRecentActivity_v2414(session.user.id),
-  ])
+  // Check onboarding state
+  const onboardingState = await db.onboardingState_v3.findUnique({
+    where: { userId: session.user.id }
+  })
+
+  if (!onboardingState?.isComplete) {
+    redirect("/onboarding")
+  }
 
   return (
     <DashboardShell>
       <DashboardHeader
         heading="Dashboard"
-        text="Welcome back! Here's an overview of your translation projects."
+        text="Welcome to QUAi! Here's an overview of your documents and questions."
       />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <WelcomeMessage
           className="col-span-4"
           user={session.user}
-          checklist={checklist}
         />
-        <TranslationStats className="col-span-3" userId={session.user.id} />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <ProjectsOverview
-          className="col-span-4"
-          userId={session.user.id}
-        />
-        <RecentActivity
-          className="col-span-3"
-          activity={activity}
+        <UsageMetrics 
+          className="col-span-3" 
+          userId={session.user.id} 
         />
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <TeamOverview
+        <DocumentsOverview
           className="col-span-4"
           userId={session.user.id}
         />
+        <div className="col-span-3 space-y-4">
+          <RecentQuestions
+            userId={session.user.id}
+          />
+          <UpgradeCard plan={session.user.plan || 'free'} />
+        </div>
       </div>
     </DashboardShell>
   )

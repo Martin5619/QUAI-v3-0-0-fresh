@@ -1,142 +1,93 @@
 'use client'
 
 import { useState } from "react"
-import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { toast } from "sonner"
 import { WelcomeStep } from "./steps/welcome-step"
-import { ProfileStep } from "./steps/profile-step"
-import { PreferencesStep } from "./steps/preferences-step"
-import { PlanSelectionStep } from "./steps/plan-selection-step"
-import { UsageOverviewStep } from "./steps/usage-overview-step"
-import { CompletionStep } from "./steps/completion-step"
+import { Role_v3 } from "@prisma/client"
 
-interface OnboardingWizardProps {
-  user: any
-  initialState?: any
+interface OnboardingData {
+  role: Role_v3 | ""
 }
 
-export function OnboardingWizard({ user, initialState }: OnboardingWizardProps) {
-  const [step, setStep] = useState(0)
-  const [data, setData] = useState({
-    role: '',
-    name: user?.name || '',
-    avatar: user?.image || '',
-    preferences: {},
-    plan: 'free',
+interface OnboardingWizardProps {
+  user: {
+    id: string
+    name?: string | null
+    email?: string | null
+  }
+}
+
+export function OnboardingWizard({ user }: OnboardingWizardProps) {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [data, setData] = useState<OnboardingData>({
+    role: ""
   })
 
-  const handleSignOut = async () => {
-    await fetch('/api/auth/signout', { method: 'POST' })
-    window.location.href = '/'
+  const handleUpdate = (newData: Partial<OnboardingData>) => {
+    console.log("[ONBOARDING] Updating data:", newData)
+    setData(prev => ({ ...prev, ...newData }))
   }
 
-  const steps = [
-    {
-      title: "Welcome",
-      component: WelcomeStep,
-      props: {
-        onNext: (stepData: any) => {
-          setData({ ...data, ...stepData })
-          setStep(step + 1)
-        },
-        onSkip: () => setStep(step + 1)
-      }
-    },
-    {
-      title: "Profile",
-      component: ProfileStep,
-      props: {
-        initialData: {
-          name: data.name,
-          avatar: data.avatar
-        },
-        onNext: (stepData: any) => {
-          setData({ ...data, ...stepData })
-          setStep(step + 1)
-        },
-        onBack: () => setStep(step - 1)
-      }
-    },
-    {
-      title: "Preferences",
-      component: PreferencesStep,
-      props: {
-        onNext: (stepData: any) => {
-          setData({ ...data, ...stepData })
-          setStep(step + 1)
-        },
-        onBack: () => setStep(step - 1)
-      }
-    },
-    {
-      title: "Plan",
-      component: PlanSelectionStep,
-      props: {
-        onNext: (stepData: any) => {
-          setData({ ...data, ...stepData })
-          setStep(step + 1)
-        },
-        onBack: () => setStep(step - 1)
-      }
-    },
-    {
-      title: "Usage",
-      component: UsageOverviewStep,
-      props: {
-        data: data,
-        onNext: (stepData: any) => {
-          setData({ ...data, ...stepData })
-          setStep(step + 1)
-        },
-        onBack: () => setStep(step - 1)
-      }
-    },
-    {
-      title: "Complete",
-      component: CompletionStep,
-      props: {
-        data: data,
-        onComplete: async () => {
-          // Save all data and redirect to dashboard
-          try {
-            await fetch('/api/user/onboarding', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data)
-            })
-            window.location.href = '/dashboard'
-          } catch (error) {
-            console.error('Failed to save onboarding data:', error)
-          }
-        }
-      }
+  const handleSubmit = async () => {
+    console.log("[ONBOARDING] Submit clicked, current data:", data)
+    
+    if (!data.role) {
+      toast.error("Please select a role to continue")
+      return
     }
-  ]
 
-  const currentStep = steps[step]
-  const StepComponent = currentStep.component
-  const progress = ((step + 1) / steps.length) * 100
+    try {
+      setIsLoading(true)
+      console.log("[ONBOARDING] Submitting data:", data)
+
+      // Only send the role to match API expectations
+      const payload = {
+        role: data.role
+      }
+
+      console.log("[ONBOARDING] Formatted payload:", payload)
+
+      const response = await fetch("/api/user/onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to save onboarding data")
+      }
+
+      const result = await response.json()
+      console.log("[ONBOARDING] Success:", result)
+
+      toast.success("Welcome to QUAi!")
+      
+      // Force a hard navigation to ensure fresh data
+      window.location.href = "/dashboard"
+    } catch (error) {
+      console.error("[ONBOARDING_ERROR]", error)
+      toast.error(error instanceof Error ? error.message : "Failed to complete onboarding")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  console.log("[ONBOARDING] Current state:", { data, isLoading })
 
   return (
-    <Card className="w-full max-w-3xl p-6 md:p-8">
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-muted-foreground">
-            Step {step + 1} of {steps.length}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSignOut}
-            className="text-muted-foreground"
-          >
-            Sign Out
-          </Button>
-        </div>
-        <Progress value={progress} className="h-2" />
-      </div>
-      <StepComponent {...currentStep.props} />
-    </Card>
+    <div className="container max-w-4xl mx-auto py-8">
+      <WelcomeStep 
+        data={data}
+        onUpdate={handleUpdate}
+        onNext={handleSubmit}
+        isLoading={isLoading}
+      />
+    </div>
   )
 }
