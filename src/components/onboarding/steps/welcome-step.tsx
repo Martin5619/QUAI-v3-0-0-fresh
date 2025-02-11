@@ -1,3 +1,5 @@
+'use client'
+
 import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, GraduationCap, School, Users } from "lucide-react"
@@ -6,21 +8,27 @@ import { Role_v3 } from "@prisma/client"
 
 interface WelcomeStepProps {
   data: {
-    role: Role_v3 | ""
+    role: Role_v3 | string
   }
-  onUpdate: (data: any) => void
+  onUpdate: (data: { role: Role_v3 | string }) => void
   onNext: () => void
   isLoading: boolean
 }
 
 export function WelcomeStep({ data, onUpdate, onNext, isLoading }: WelcomeStepProps) {
+  console.log("[WELCOME_STEP] Rendering with data:", data)
+
   const handleRoleSelect = (roleId: Role_v3) => {
-    console.log("[ONBOARDING] Selected role:", roleId)
+    console.log("[WELCOME_STEP] Selected role:", roleId)
     onUpdate({ role: roleId })
   }
 
   const handleContinue = () => {
-    console.log("[ONBOARDING] Continue clicked, role:", data.role)
+    if (!data?.role) {
+      console.warn("[WELCOME_STEP] Attempted to continue without role")
+      return
+    }
+    console.log("[WELCOME_STEP] Continue clicked, role:", data.role)
     onNext()
   }
 
@@ -62,8 +70,8 @@ export function WelcomeStep({ data, onUpdate, onNext, isLoading }: WelcomeStepPr
       ]
     },
     {
-      id: "LEARNING_MANAGER" as Role_v3,
-      title: "Learning Manager",
+      id: "INSTITUTION_ADMIN" as Role_v3,
+      title: "Institution Admin",
       description: "Manage educational programs and teams",
       icon: Users,
       features: [
@@ -74,6 +82,11 @@ export function WelcomeStep({ data, onUpdate, onNext, isLoading }: WelcomeStepPr
       ]
     }
   ]
+
+  if (!data) {
+    console.error("[WELCOME_STEP] Data prop is undefined")
+    return null
+  }
 
   return (
     <Card>

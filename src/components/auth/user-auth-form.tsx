@@ -7,33 +7,47 @@ import { signIn } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { cn } from '@/lib/utils'
-import { userAuthSchema } from '@/lib/validations/auth'
+import { loginSchema, registerSchema } from '@/lib/validations/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/use-toast'
 import { Icons } from '@/components/ui/icons'
+import HCaptcha from '@hcaptcha/react-hcaptcha'
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   mode?: 'signin' | 'signup'
 }
 
-type FormData = z.infer<typeof userAuthSchema>
-
 export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthFormProps) {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(userAuthSchema),
+  } = useForm<z.infer<typeof registerSchema>>({
+    resolver: zodResolver(mode === 'signin' ? loginSchema : registerSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      confirmPassword: '',
+      recaptchaToken: '',
+    },
   })
+
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
   const [isGoogleLoading, setIsGoogleLoading] = React.useState<boolean>(false)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const captchaRef = React.useRef<HCaptcha>(null)
 
-  async function onSubmit(data: FormData) {
+  const onCaptchaVerify = (token: string) => {
+    setValue('recaptchaToken', token)
+  }
+
+  async function onSubmit(data: z.infer<typeof registerSchema>) {
     setIsLoading(true)
 
     try {
@@ -47,32 +61,33 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
           body: JSON.stringify({
             email: data.email.toLowerCase(),
             password: data.password,
-            name: data.name,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            confirmPassword: data.confirmPassword,
+            recaptchaToken: data.recaptchaToken || '',
           }),
         })
 
+        const responseData = await response.json()
+
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
-          throw new Error(errorData.error || `Failed to create account: ${response.status}`)
+          throw new Error(responseData.error || 'Failed to create account')
         }
 
-        const result = await response.json().catch(() => null)
-        if (!result?.success) {
+        if (!responseData?.success) {
           throw new Error('Failed to create account: Invalid response')
         }
 
-        // After successful registration, sign in
-        const signInResult = await signIn('credentials', {
-          email: data.email.toLowerCase(),
-          password: data.password,
-          redirect: false,
-        })
+        // Store credentials for auto-signin after email verification
+        sessionStorage.setItem(
+          'pendingSignup',
+          JSON.stringify({
+            email: data.email.toLowerCase(),
+            password: data.password,
+          })
+        )
 
-        if (signInResult?.error) {
-          throw new Error('Failed to sign in after registration')
-        }
-
-        router.push('/onboarding')
+        router.push('/auth/verify-email')
       } else {
         // Regular sign in
         const signInResult = await signIn('credentials', {
@@ -95,6 +110,8 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
         description: error instanceof Error ? error.message : 'Please try again',
         variant: 'destructive',
       })
+      // Reset captcha on error
+      captchaRef.current?.resetCaptcha()
     } finally {
       setIsLoading(false)
     }
@@ -104,6 +121,50 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
     <div className={cn('grid gap-6', className)} {...props}>
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid gap-2">
+          {mode === 'signup' && (
+            <>
+              <div className="grid gap-1">
+                <Label className="sr-only" htmlFor="firstName">
+                  First Name
+                </Label>
+                <Input
+                  id="firstName"
+                  placeholder="First name"
+                  type="text"
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  autoCorrect="off"
+                  disabled={isLoading || isGoogleLoading}
+                  {...register('firstName')}
+                />
+                {errors?.firstName && (
+                  <p className="px-1 text-xs text-red-600">
+                    {errors.firstName.message}
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-1">
+                <Label className="sr-only" htmlFor="lastName">
+                  Last Name
+                </Label>
+                <Input
+                  id="lastName"
+                  placeholder="Last name"
+                  type="text"
+                  autoCapitalize="words"
+                  autoComplete="family-name"
+                  autoCorrect="off"
+                  disabled={isLoading || isGoogleLoading}
+                  {...register('lastName')}
+                />
+                {errors?.lastName && (
+                  <p className="px-1 text-xs text-red-600">
+                    {errors.lastName.message}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
           <div className="grid gap-1">
             <Label className="sr-only" htmlFor="email">
               Email
@@ -113,7 +174,7 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
               placeholder="name@example.com"
               type="email"
               autoCapitalize="none"
-              autoComplete="email"
+              autoComplete="username"
               autoCorrect="off"
               disabled={isLoading || isGoogleLoading}
               {...register('email')}
@@ -145,26 +206,44 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
             )}
           </div>
           {mode === 'signup' && (
-            <div className="grid gap-1">
-              <Label className="sr-only" htmlFor="name">
-                Name
-              </Label>
-              <Input
-                id="name"
-                placeholder="Your name"
-                type="text"
-                autoCapitalize="words"
-                autoComplete="name"
-                autoCorrect="off"
-                disabled={isLoading || isGoogleLoading}
-                {...register('name')}
-              />
-              {errors?.name && (
-                <p className="px-1 text-xs text-red-600">
-                  {errors.name.message}
-                </p>
+            <>
+              <div className="grid gap-1">
+                <Label className="sr-only" htmlFor="confirmPassword">
+                  Confirm Password
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  placeholder="Confirm password"
+                  type="password"
+                  autoCapitalize="none"
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  disabled={isLoading || isGoogleLoading}
+                  {...register('confirmPassword')}
+                />
+                {errors?.confirmPassword && (
+                  <p className="px-1 text-xs text-red-600">
+                    {errors.confirmPassword.message}
+                  </p>
+                )}
+              </div>
+              {process.env.NODE_ENV !== 'development' && (
+                <>
+                  <div className="flex justify-center py-2">
+                    <HCaptcha
+                      ref={captchaRef}
+                      sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY || ''}
+                      onVerify={onCaptchaVerify}
+                    />
+                  </div>
+                  {errors?.recaptchaToken && (
+                    <p className="px-1 text-xs text-red-600 text-center">
+                      {errors.recaptchaToken.message}
+                    </p>
+                  )}
+                </>
               )}
-            </div>
+            </>
           )}
           <Button disabled={isLoading}>
             {isLoading && (
@@ -199,7 +278,7 @@ export function UserAuthForm({ className, mode = 'signin', ...props }: UserAuthF
           <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
         ) : (
           <Icons.google className="mr-2 h-4 w-4" />
-        )}{' '}
+        )}
         Google
       </Button>
     </div>

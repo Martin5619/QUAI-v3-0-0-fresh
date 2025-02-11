@@ -1,0 +1,20 @@
+ ÔÜá Invalid next.config.js options detected: 
+   Ôû▓ Next.js 14.0.4
+ ÔÜá     "env._next_intl_trailing_slash" is missing, expected string
+ ÔÜá     Expected object, received boolean at "experimental.serverActions"
+ ÔÜá See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ÔÜá Server Actions are available by default now, `experimental.serverActions` option can be safely removed.
+   - Local:        http://localhost:3002
+   - Environments: .env.local, .env
+
+ Ô£ô Ready in 6.4s
+ ÔÜá Found a change in next.config.js. Restarting the server to apply the changes...
+   Ôû▓ Next.js 14.0.4
+   - Local:        http://localhost:3002
+   - Environments: .env.local, .env
+
+ ÔÜá Invalid next.config.js options detected: 
+ ÔÜá     "env._next_intl_trailing_slash" is missing, expected string
+ ÔÜá See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ Ô£ô Ready in 4.8s
+[?25h

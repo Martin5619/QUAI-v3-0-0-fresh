@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getServerSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
@@ -10,7 +10,7 @@ import { RecentQuestions } from "@/components/dashboard/recent-questions"
 import { UpgradeCard } from "@/components/dashboard/upgrade-card"
 
 export default async function DashboardPage() {
-  const session = await auth()
+  const session = await getServerSession()
   if (!session?.user) redirect("/auth/signin")
 
   // Check onboarding state

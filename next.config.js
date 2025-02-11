@@ -6,22 +6,15 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 const nextConfig = {
   reactStrictMode: false,
   experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002'],
-      bodySizeLimit: '2mb'
-    }
+    serverActions: true
   },
   webpack: (config) => {
     config.externals = [...config.externals, 'canvas', 'jsdom']
     return config
   },
   images: {
-    domains: ['images.unsplash.com'],
-  },
-  poweredByHeader: false,
-  generateEtags: false,
-  distDir: '.next',
-  crossOrigin: 'anonymous'
+    domains: ['avatars.githubusercontent.com'],
+  }
 }
 
 module.exports = withNextIntl(nextConfig)

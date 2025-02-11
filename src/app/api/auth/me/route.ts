@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getServerSession } from 'next-auth/next'
 
 export async function GET() {
   try {
-    const session = await auth()
+    const session = await getServerSession()
     
     if (!session?.user?.email) {
       return NextResponse.json(

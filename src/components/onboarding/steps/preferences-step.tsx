@@ -3,13 +3,14 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ArrowLeft } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, ArrowLeft } from "lucide-react"
 
 interface PreferencesStepProps {
   data: any
   onUpdate: (data: any) => void
-  onBack: () => void
+  onNext: () => void
+  isLoading?: boolean
 }
 
 const languages = [
@@ -25,9 +26,9 @@ const languages = [
   { value: 'ko', label: '한국어' }
 ]
 
-export function PreferencesStep({ data, onUpdate, onBack }: PreferencesStepProps) {
+export function PreferencesStep({ data, onUpdate, onNext, isLoading }: PreferencesStepProps) {
   const [preferences, setPreferences] = useState({
-    theme: data.preferences?.theme || 'system',
+    theme: data.preferences?.theme || 'light',
     notifications: data.preferences?.notifications || 'important',
     language: data.preferences?.language || 'en'
   })
@@ -35,90 +36,88 @@ export function PreferencesStep({ data, onUpdate, onBack }: PreferencesStepProps
   const handleUpdate = (key: string, value: string) => {
     const newPreferences = { ...preferences, [key]: value }
     setPreferences(newPreferences)
+    onUpdate({ preferences: newPreferences })
+  }
+
+  const handleContinue = async () => {
+    // Update preferences in parent before continuing
+    onUpdate({ preferences })
+    onNext()
   }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold">Your Preferences</h1>
-        <p className="text-muted-foreground">
-          Customize your QUAi experience
-        </p>
+      <div>
+        <h2 className="text-lg font-medium">Preferences</h2>
+        <p className="text-sm text-gray-500">Customize your experience</p>
       </div>
 
-      <div className="space-y-6">
-        <div className="space-y-4">
-          <Label>Theme Preference</Label>
-          <RadioGroup 
-            value={preferences.theme} 
+      <div className="grid gap-6">
+        <div className="space-y-2">
+          <Label>Theme</Label>
+          <Select
+            value={preferences.theme}
             onValueChange={(value) => handleUpdate('theme', value)}
+            disabled={isLoading}
           >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="light" id="light" />
-              <Label htmlFor="light">Light</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="dark" id="dark" />
-              <Label htmlFor="dark">Dark</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="system" id="system" />
-              <Label htmlFor="system">System</Label>
-            </div>
-          </RadioGroup>
+            <SelectTrigger>
+              <SelectValue placeholder="Select theme" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">Dark</SelectItem>
+              <SelectItem value="system">System</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="space-y-4">
-          <Label>Notification Preferences</Label>
-          <RadioGroup 
-            value={preferences.notifications} 
+        <div className="space-y-2">
+          <Label>Notifications</Label>
+          <Select
+            value={preferences.notifications}
             onValueChange={(value) => handleUpdate('notifications', value)}
+            disabled={isLoading}
           >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="all" id="all" />
-              <Label htmlFor="all">All Notifications</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="important" id="important" />
-              <Label htmlFor="important">Important Only</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="none" id="none" />
-              <Label htmlFor="none">None</Label>
-            </div>
-          </RadioGroup>
+            <SelectTrigger>
+              <SelectValue placeholder="Select notification preference" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="important">Important Only</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           <Label>Language</Label>
-          <RadioGroup 
-            value={preferences.language} 
+          <Select
+            value={preferences.language}
             onValueChange={(value) => handleUpdate('language', value)}
-            className="grid grid-cols-2 gap-4"
+            disabled={isLoading}
           >
-            {languages.map((lang) => (
-              <div key={lang.value} className="flex items-center space-x-2">
-                <RadioGroupItem value={lang.value} id={`lang-${lang.value}`} />
-                <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
-              </div>
-            ))}
-          </RadioGroup>
+            <SelectTrigger>
+              <SelectValue placeholder="Select language" />
+            </SelectTrigger>
+            <SelectContent>
+              {languages.map((lang) => (
+                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="flex justify-between">
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          className="flex items-center"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <Button onClick={() => onUpdate({ preferences })}>
-          Continue
-        </Button>
-      </div>
+      <Button
+        onClick={handleContinue}
+        disabled={isLoading}
+        className="w-full"
+      >
+        {isLoading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : null}
+        Continue
+      </Button>
     </div>
   )
 }

@@ -1,81 +1,113 @@
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { Role_v3 } from "@prisma/client"
-import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import CredentialsProvider from "next-auth/providers/credentials"
-import bcrypt from "bcryptjs"
-import { db } from "@/lib/db"
+import NextAuth from 'next-auth'
+import GoogleProvider from 'next-auth/providers/google'
+import CredentialsProvider from 'next-auth/providers/credentials'
+import bcrypt from 'bcryptjs'
+import { db } from '@/lib/db'
+import { PrismaAdapter } from '@auth/prisma-adapter'
+import { authOptions } from '@/lib/auth'
 
-export const { handlers: { GET, POST }, auth } = NextAuth({
+const handler = NextAuth({
+  ...authOptions,
   adapter: PrismaAdapter(db),
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
-    strategy: "jwt",
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
-    signIn: "/signin",
-    error: "/auth/error",
+    signIn: '/auth/signin',
+    signOut: '/',
+    error: '/auth/error'
   },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      profile(profile) {
+      async profile(profile) {
+        const existingUser = await db.user_v3.findUnique({
+          where: { email: profile.email }
+        })
+
+        if (!existingUser) {
+          const newUser = await db.user_v3.create({
+            data: {
+              email: profile.email,
+              name: profile.name,
+              role: 'personal',
+              plan: 'free'
+            }
+          })
+          return {
+            id: newUser.id,
+            email: newUser.email,
+            name: newUser.name,
+            role: newUser.role,
+            plan: newUser.plan
+          }
+        }
+
         return {
-          id: profile.sub,
-          name: profile.name,
-          email: profile.email,
-          image: profile.picture,
-          role: "STUDENT" as Role_v3
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          plan: existingUser.plan
         }
       }
     }),
     CredentialsProvider({
-      name: "credentials",
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Please enter your email and password")
+          return null
         }
 
         const user = await db.user_v3.findUnique({
-          where: { email: credentials.email }
+          where: { email: credentials.email.toLowerCase() }
         })
 
         if (!user || !user.password) {
-          throw new Error("No user found with this email")
-        }
-
-        if (!user.isVerified) {
-          throw new Error("Please verify your email before signing in")
+          return null
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.password)
-
+        
         if (!isValid) {
-          throw new Error("Invalid password")
+          return null
         }
 
-        return user
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          plan: user.plan
+        }
       }
     })
   ],
   callbacks: {
-    async session({ session, token }) {
-      if (session?.user) {
-        session.user.role = token.role as Role_v3
-        session.user.id = token.id as string
-      }
-      return session
-    },
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role
         token.id = user.id
+        token.role = user.role
+        token.plan = user.plan
       }
       return token
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id
+        session.user.role = token.role
+        session.user.plan = token.plan
+      }
+      return session
     }
   }
 })
+
+export { handler as GET, handler as POST }

@@ -1,167 +1,134 @@
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { Role_v3 } from "@prisma/client"
-
-// Define valid roles explicitly from schema
-const validRoles = [
-  "SUPER_ADMIN",
-  "TEACHER",
-  "LEARNING_MANAGER",
-  "STUDENT",
-  "CORPORATE_USER",
-  "PERSONAL_USER",
-  "INSTITUTION",
-  "ADMINISTRATOR",
-  "DEVELOPER",
-  "SUPPORT",
-  "ANALYST",
-  "MANAGER"
-] as const
+import { getServerSession } from "@/lib/auth"
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
+import { cookies, headers } from "next/headers"
 
 export async function POST(req: Request) {
+  console.log("[ONBOARDING_DEBUG] Starting onboarding POST request")
   try {
-    console.log("[ONBOARDING_DEBUG] Starting onboarding request")
-    const session = await auth()
-    
-    if (!session?.user) {
-      console.error("[ONBOARDING_ERROR] No session found")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    // Get session using the App Router pattern
+    console.log("[ONBOARDING_DEBUG] Getting session...")
+    const session = await getServerSession()
 
-    console.log("[ONBOARDING_DEBUG] Session user:", {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email
+    console.log("[ONBOARDING_DEBUG] Raw session:", {
+      session,
+      user: session?.user,
+      id: session?.user?.id,
+      email: session?.user?.email,
+      headers: Object.fromEntries(headers()),
+      cookies: Object.fromEntries(cookies().getAll().map(c => [c.name, c.value]))
     })
 
-    let data
-    try {
-      const text = await req.text()
-      console.log("[ONBOARDING_DEBUG] Raw request body:", text)
-      
-      if (!text) {
-        console.error("[ONBOARDING_ERROR] Empty request body")
-        return NextResponse.json({ error: "Empty request body" }, { status: 400 })
-      }
-
-      data = JSON.parse(text)
-      console.log("[ONBOARDING_DEBUG] Parsed request body:", data)
-
-      // Validate data structure
-      if (!data || typeof data !== 'object') {
-        throw new Error("Invalid data format")
-      }
-
-      // Ensure required fields
-      if (!data.role || typeof data.role !== 'string') {
-        throw new Error("Missing or invalid role")
-      }
-
-    } catch (error) {
-      console.error("[ONBOARDING_ERROR] Request validation failed:", error)
+    if (!session || !session.user) {
+      console.log("[ONBOARDING_ERROR] No session or user")
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Invalid request format" },
+        { error: "Not authenticated" },
+        { status: 401 }
+      )
+    }
+
+    // Type check session.user.id
+    if (!session.user.id) {
+      console.log("[ONBOARDING_ERROR] No user ID in session")
+      console.log("[ONBOARDING_DEBUG] Session user:", session.user)
+      return NextResponse.json(
+        { error: "Invalid session: missing user ID" },
+        { status: 401 }
+      )
+    }
+
+    // Parse request data
+    console.log("[ONBOARDING_DEBUG] Parsing request data...")
+    const data = await req.json()
+    console.log("[ONBOARDING_DEBUG] Request data:", data)
+
+    const { role } = data
+    if (!role) {
+      console.log("[ONBOARDING_ERROR] No role provided")
+      return NextResponse.json(
+        { error: "Role is required" },
         { status: 400 }
       )
     }
 
-    // Validate role
-    if (!validRoles.includes(data.role as Role_v3)) {
-      console.error("[ONBOARDING_ERROR] Invalid role:", {
-        receivedRole: data.role,
-        validRoles,
-      })
-      return NextResponse.json(
-        { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
-        { status: 400 }
-      )
-    }
-
+    // First check if user exists
+    console.log("[ONBOARDING_DEBUG] Checking if user exists...")
     try {
-      console.log("[ONBOARDING_DEBUG] Starting database operations")
-
-      // Create or update onboarding state
-      const onboardingState = await db.onboardingState_v3.upsert({
+      const existingUser = await db.user_v3.findUnique({
         where: {
-          userId: session.user.id,
-        },
-        create: {
-          userId: session.user.id,
-          role: data.role as Role_v3,
-          preferences: {},
-          plan: 'free',
-          isComplete: true,
-          completedAt: new Date(),
-        },
-        update: {
-          role: data.role as Role_v3,
-          preferences: {},
-          plan: 'free',
-          isComplete: true,
-          completedAt: new Date(),
-        },
+          id: session.user.id
+        }
       })
 
-      console.log("[ONBOARDING_DEBUG] Updated onboarding state:", onboardingState)
+      console.log("[ONBOARDING_DEBUG] Existing user:", existingUser)
 
-      // Update user role
-      const updatedUser = await db.user_v3.update({
-        where: {
-          id: session.user.id,
-        },
-        data: {
-          role: data.role as Role_v3,
-        },
-      })
-
-      console.log("[ONBOARDING_DEBUG] Updated user:", updatedUser)
-
-      // Initialize usage metrics
-      const usageMetrics = await db.usage_v3.upsert({
-        where: {
-          userId: session.user.id,
-        },
-        create: {
-          userId: session.user.id,
-          documentsCount: 0,
-          questionsCount: 0,
-          storageUsed: 0,
-          tokensUsed: 0,
-        },
-        update: {},
-      })
-
-      console.log("[ONBOARDING_DEBUG] Initialized usage metrics:", usageMetrics)
-
-      return NextResponse.json({ 
-        success: true,
-        onboardingState,
-        user: updatedUser,
-        usageMetrics
-      })
+      if (!existingUser) {
+        console.log("[ONBOARDING_ERROR] User not found:", session.user.id)
+        return NextResponse.json(
+          { error: "User not found" },
+          { status: 404 }
+        )
+      }
     } catch (error) {
-      console.error("[ONBOARDING_ERROR] Database operation failed:", {
+      console.error("[ONBOARDING_ERROR] Error finding user:", {
         error,
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-        session: {
-          id: session.user.id,
-          name: session.user.name,
-          email: session.user.email
-        },
-        data
+        userId: session.user.id
       })
       return NextResponse.json(
-        { error: "Failed to save onboarding data" },
+        { error: "Error finding user" },
+        { status: 500 }
+      )
+    }
+
+    // Create onboarding state with just the role
+    try {
+      console.log("[ONBOARDING_DEBUG] Creating onboarding state with:", {
+        userId: session.user.id,
+        role: role,
+      })
+
+      const onboardingState = await db.onboardingState_v3.create({
+        data: {
+          userId: session.user.id,
+          role: role as Role_v3,
+          isComplete: false
+        }
+      })
+
+      console.log("[ONBOARDING_DEBUG] Onboarding state created:", onboardingState)
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error("[ONBOARDING_ERROR] Failed to create onboarding state:", {
+        error,
+        errorType: error?.constructor?.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        userId: session.user.id,
+        role: role,
+      })
+
+      if (error instanceof PrismaClientKnownRequestError) {
+        console.error("[ONBOARDING_ERROR] Prisma error details:", {
+          code: error.code,
+          meta: error.meta,
+          message: error.message
+        })
+      }
+
+      return NextResponse.json(
+        { error: "Failed to create onboarding state" },
         { status: 500 }
       )
     }
   } catch (error) {
-    console.error("[ONBOARDING_ERROR] Unhandled error:", {
+    console.error("[ONBOARDING_ERROR] Unexpected error:", {
       error,
-      message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined
+      errorType: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(
       { error: "Internal server error" },

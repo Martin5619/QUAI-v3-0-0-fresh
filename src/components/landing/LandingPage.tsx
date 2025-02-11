@@ -23,6 +23,7 @@ import { PricingSection } from '@/components/pricing/PricingSection'
 export function LandingPage() {
   const [isVideoOpen, setIsVideoOpen] = useState(false)
   const [demoText, setDemoText] = useState('')
+  const [demoVideo, setDemoVideo] = useState<{ type: 'youtube' | 'remote' | 'local', url: string } | null>(null)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -30,6 +31,23 @@ export function LandingPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Fetch demo video config when modal opens
+  useEffect(() => {
+    if (isVideoOpen && !demoVideo) {
+      fetch('/api/demo-video')
+        .then(res => res.json())
+        .then(data => setDemoVideo(data))
+        .catch(error => {
+          console.error('[DEMO_VIDEO_ERROR]', error)
+          // Fallback to default
+          setDemoVideo({
+            type: 'youtube',
+            url: 'dQw4w9WgXcQ'
+          })
+        })
+    }
+  }, [isVideoOpen, demoVideo])
 
   if (!mounted) {
     return null
@@ -72,7 +90,7 @@ export function LandingPage() {
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                   asChild
                 >
-                  <a href="/signup">Get Started</a>
+                  <a href="/auth/signup">Get Started</a>
                 </Button>
               </div>
             </div>
@@ -103,7 +121,7 @@ export function LandingPage() {
                     className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white"
                     asChild
                   >
-                    <a href="/signup">
+                    <a href="/auth/signup">
                       Get Started
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </a>
@@ -149,12 +167,25 @@ export function LandingPage() {
         <Dialog open={isVideoOpen} onOpenChange={setIsVideoOpen}>
           <DialogContent className="sm:max-w-[800px] p-0 bg-black">
             <div className="aspect-video">
-              <iframe
-                className="w-full h-full"
-                src={process.env.NEXT_PUBLIC_DEMO_VIDEO_URL || "https://www.youtube.com/embed/default-video-id"}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              {demoVideo?.type === 'youtube' ? (
+                <iframe
+                  key={isVideoOpen ? 'open' : 'closed'} // Force iframe refresh when dialog opens
+                  className="w-full h-full"
+                  src={`https://www.youtube.com/embed/${demoVideo.url}?autoplay=1&rel=0`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : demoVideo?.type === 'remote' || demoVideo?.type === 'local' ? (
+                <video
+                  key={isVideoOpen ? 'open' : 'closed'}
+                  className="w-full h-full"
+                  controls
+                  autoPlay
+                  src={demoVideo.url}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>

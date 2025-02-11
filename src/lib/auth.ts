@@ -1,109 +1,99 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import GoogleProvider from 'next-auth/providers/google'
-import bcrypt from 'bcryptjs'
+import { NextAuthOptions } from 'next-auth'
 import { PrismaAdapter } from '@auth/prisma-adapter'
-import { db } from './db'
-
-const crypto = require('crypto')
+import { db } from '@/lib/db'
+import { headers, cookies } from 'next/headers'
+import { getServerSession as getServerSessionInternal } from 'next-auth'
+import { JWT } from 'next-auth/jwt'
 
 if (!process.env.NEXTAUTH_SECRET) {
-  process.env.NEXTAUTH_SECRET = crypto.randomBytes(32).toString('hex')
-  console.warn('NEXTAUTH_SECRET not set, using random value. This is not recommended for production.')
+  throw new Error('Please provide process.env.NEXTAUTH_SECRET')
 }
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
-  adapter: PrismaAdapter(db),
+// Extend the built-in session types
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string
+      email: string
+      firstName?: string | null
+      lastName?: string | null
+      image?: string | null
+    }
+  }
+}
+
+export const authOptions: NextAuthOptions = {
+  adapter: {
+    ...PrismaAdapter(db),
+    createUser: async (data) => {
+      console.log("[AUTH_DEBUG] Creating user:", data)
+      const user = await db.User_v3.create({
+        data: {
+          ...data,
+          accountState: 'CREATED'
+        }
+      })
+      console.log("[AUTH_DEBUG] Created user:", user)
+      return user
+    }
+  },
   secret: process.env.NEXTAUTH_SECRET,
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      async profile(profile) {
-        const existingUser = await db.user_v3.findUnique({
-          where: { email: profile.email }
-        })
-
-        if (!existingUser) {
-          const newUser = await db.user_v3.create({
-            data: {
-              email: profile.email,
-              name: profile.name,
-              role: 'PERSONAL_USER',
-              isVerified: true, // Google users are pre-verified
-              provider: 'google'
-            }
-          })
-          return newUser
-        }
-        return existingUser
-      }
-    }),
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials')
-        }
-
-        const user = await db.user_v3.findUnique({
-          where: { email: credentials.email }
-        })
-
-        if (!user || !user.password) {
-          throw new Error('User not found')
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password)
-
-        if (!isValid) {
-          throw new Error('Invalid password')
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isVerified: user.isVerified
-        }
-      }
-    })
-  ],
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
     error: '/auth/error'
   },
-  session: {
-    strategy: 'jwt'
-  },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role
-        token.id = user.id
-        token.isVerified = user.isVerified
-      }
-      return token
-    },
     async session({ session, token }) {
-      if (session?.user) {
-        session.user.role = token.role
-        session.user.id = token.id
-        session.user.isVerified = token.isVerified
+      console.log("[AUTH_DEBUG] Session callback:", { session, token })
+      if (session.user && token.sub) {
+        session.user.id = token.sub
+        
+        // Get user data from database
+        const user = await db.User_v3.findUnique({
+          where: { id: token.sub },
+          select: {
+            firstName: true,
+            lastName: true,
+            image: true
+          }
+        })
+
+        if (user) {
+          // Keep firstName and lastName separate
+          session.user.firstName = user.firstName
+          session.user.lastName = user.lastName
+          session.user.image = user.image
+        }
       }
       return session
+    },
+    async jwt({ token, user, account, profile }) {
+      console.log("[AUTH_DEBUG] JWT callback:", { token, user, account, profile })
+      if (user) {
+        token.sub = user.id
+      }
+      return token
     }
   },
   debug: process.env.NODE_ENV === 'development'
-})
+}
+
+// Use this instead of getServerSession directly in Server Components
+export async function getServerSession() {
+  const headersList = await headers()
+  const cookiesList = await cookies()
+  
+  const req = {
+    headers: Object.fromEntries(headersList.entries()),
+    cookies: Object.fromEntries(
+      cookiesList.getAll().map((c) => [c.name, c.value])
+    ),
+  }
+  const res = { getHeader() {}, setCookie() {}, setHeader() {} }
+  
+  return await getServerSessionInternal(req as any, res as any, authOptions)
+}

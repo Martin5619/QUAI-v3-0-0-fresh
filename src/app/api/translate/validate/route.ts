@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { type Locale } from "@/i18n.config"
-import { auth } from "@/lib/auth"
+import { getServerSession } from "@/lib/auth"
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY
 
@@ -13,7 +13,7 @@ interface ValidationRequest_v2414 {
 export async function POST(request: Request) {
   try {
     // Check authentication and authorization
-    const session = await auth()
+    const session = await getServerSession()
     if (!session || session.user.role !== "SUPER_ADMIN") {
       return new NextResponse("Unauthorized", { status: 401 })
     }

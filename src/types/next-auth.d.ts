@@ -1,5 +1,5 @@
 import 'next-auth'
-import { Usage_v2414, Subscription_v2414 } from '@prisma/client'
+import 'next-auth/jwt'
 
 declare module 'next-auth' {
   interface Session {
@@ -8,9 +8,6 @@ declare module 'next-auth' {
       email: string
       name: string
       role: string
-      plan: string
-      usage_v2414: Usage_v2414 | null
-      subscription_v2414: Subscription_v2414 | null
     }
   }
 
@@ -19,9 +16,6 @@ declare module 'next-auth' {
     email: string
     name: string
     role: string
-    plan: string
-    usage_v2414: Usage_v2414 | null
-    subscription_v2414: Subscription_v2414 | null
   }
 }
 
@@ -31,8 +25,5 @@ declare module 'next-auth/jwt' {
     email: string
     name: string
     role: string
-    plan: string
-    usage_v2414: Usage_v2414 | null
-    subscription_v2414: Subscription_v2414 | null
   }
 }

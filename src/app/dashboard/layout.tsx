@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getServerSession } from "next-auth/next"
 import { MainNav } from "@/components/layout/main-nav"
 import { UserNav } from "@/components/layout/user-nav"
 import { SiteFooter } from "@/components/layout/site-footer"
@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
 export default async function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
-  const session = await auth()
+  const session = await getServerSession()
 
   if (!session?.user) {
     redirect('/signin')

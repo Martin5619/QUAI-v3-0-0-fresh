@@ -32,61 +32,78 @@ model Session_v3 {
   sessionToken String   @unique
   userId       String   @db.ObjectId
   expires      DateTime
-  user         User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User_v3 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions_v3")
 }
 
+enum Role_v3 {
+  STUDENT
+  TEACHER
+  INSTITUTION_ADMIN
+  SYSTEM_ADMIN
+  PERSONAL_USER
+}
+
+enum Plan_v3 {
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
+}
+
+enum AccountState_v3 {
+  CREATED           // Initial state after registration
+  EMAIL_PENDING     // Waiting for email verification
+  EMAIL_VERIFIED    // Email verified, ready for onboarding
+  ONBOARDING       // In onboarding process
+  ACTIVE           // Completed onboarding, fully active
+  SUSPENDED        // Account suspended
+  DELETED          // Soft deleted
+}
+
 model User_v3 {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  name             String?
-  email            String?   @unique
-  emailVerified    DateTime?
-  image            String?
-  password         String?
-  role             Role_v3   @default(STUDENT)
-  accounts         Account_v3[]
-  sessions         Session_v3[]
-  onboarding       OnboardingState_v3?
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  email             String          @unique
+  emailVerified     DateTime?
+  firstName         String?
+  lastName          String?
+  image             String?
+  password          String?
+  verificationToken String?         
+  resetToken        String?         
+  resetTokenExpiry  DateTime?
+  role              Role_v3?
+  plan              Plan_v3?
+  accountState      AccountState_v3 @default(CREATED)
+  preferences       Json?           // Added from full schema
+  documents         Document_v3[]   // Added from full schema
+  accounts          Account_v3[]
+  sessions          Session_v3[]
   usage            Usage_v3?
-  documents        Document_v3[]
-  quizAttempts_v3  QuizAttempt_v3[]
-  examAttempts_v3  ExamAttempt_v3[]
-  subscription_v3  Subscription_v3?  @relation("UserSubscription_v3")
-  apiKeys_v3      APIKey_v3[]
-  groupMemberships_v3 GroupMember_v3[]
-  createdGroups_v3 Group_v3[] @relation("GroupCreator_v3")
-  createdExams_v3  Exam_v3[] @relation("ExamCreator_v3")
-  gradeBooks_v3   GradeBook_v3[] @relation("UserGradeBooks_v3")
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  onboarding       OnboardingState_v3?
+  quizAttempts     QuizAttempt_v3[]
+  examAttempts     ExamAttempt_v3[]
+  subscription     Subscription_v3?  @relation("UserSubscription_v3")
+  apiKeys          APIKey_v3[]
+  groupMemberships GroupMember_v3[]
+  createdGroups    Group_v3[] @relation("GroupCreator_v3")
+  createdExams     Exam_v3[] @relation("ExamCreator_v3")
+  gradeBooks       GradeBook_v3[] @relation("UserGradeBooks_v3")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@map("users_v3")
 }
 
-model Usage_v3 {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String    @db.ObjectId @unique
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documentsCount  Int       @default(0)
-  questionsCount  Int       @default(0)
-  storageUsed     Int       @default(0)  // In bytes
-  tokensUsed      Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@map("usage_v3")
-}
-
 model Document_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
   title           String
   content         String
-  userId          String    @db.ObjectId
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  filePath        String?   // Path to the file on disk
-  mimeType        String?   // MIME type of the file
-  questionSets_v3 QuestionSet_v3[]
+  type            String    // PDF, DOC, etc.
+  size            Int       // In bytes
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -96,16 +113,11 @@ model Document_v3 {
 model QuestionSet_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   title           String
-  documentId      String    @db.ObjectId
-  document        Document_v3  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  questions_v3    Question_v3[]
-  status_v3       String    @default("pending")
-  error_v3        String?
-  isPublic_v3     Boolean   @default(false)
-  accessCode_v3   String?  // For private quizzes
-  quizAttempts_v3 QuizAttempt_v3[]
-  examQuestionSets_v3 ExamQuestionSet_v3[]
-  sharedWithGroups_v3 GroupQuestionSet_v3[]
+  description     String?
+  questions       Question_v3[]
+  quizAttempts    QuizAttempt_v3[]
+  examQuestionSets ExamQuestionSet_v3[]
+  groupQuestionSets GroupQuestionSet_v3[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -114,16 +126,13 @@ model QuestionSet_v3 {
 
 model Question_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  content         String    // Original content field maintained for backward compatibility
-  type_v3         String    @default("multiple_choice")
-  questionText_v3 String // The actual question text
-  options_v3      String[]  // Array of possible answers
-  answer          String    // Original answer field maintained for backward compatibility
-  correctOption_v3 String // Index of correct option (e.g., "A", "B", etc.)
-  explanation_v3   String
   questionSetId   String    @db.ObjectId
-  questionSet     QuestionSet_v3  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  responses_v3    QuestionResponse_v3[]
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  content         String
+  type            String    // MCQ, Essay, etc.
+  answers         Json?     // For MCQ options
+  correctAnswer   String?   // For MCQ correct option
+  responses       QuestionResponse_v3[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -133,19 +142,15 @@ model Question_v3 {
 model QuizAttempt_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   userId          String    @db.ObjectId
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
   questionSetId   String    @db.ObjectId
-  questionSet     QuestionSet_v3  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  status_v3       String    @default("in_progress") // in_progress, completed
-  score_v3        Float?    // Percentage score
-  responses_v3    QuestionResponse_v3[]
-  startedAt       DateTime  @default(now())
-  completedAt     DateTime?
-  timeSpent_v3    Int?     // Time spent in seconds
-  examAttemptId   String?   @db.ObjectId  // Optional - if this attempt is part of an exam
-  examAttempt     ExamAttempt_v3?  @relation(fields: [examAttemptId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  responses       QuestionResponse_v3[]
+  score          Float?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@map("quiz_attempts_v3")
 }
@@ -153,14 +158,13 @@ model QuizAttempt_v3 {
 model QuestionResponse_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   quizAttemptId   String    @db.ObjectId
-  quizAttempt     QuizAttempt_v3  @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  quizAttempt     QuizAttempt_v3 @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
   questionId      String    @db.ObjectId
-  question        Question_v3  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  selectedOption_v3 String
-  isCorrect_v3    Boolean
-  timeSpent_v3    Int?     // Time spent on this question in seconds
+  question        Question_v3 @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  response        String
+  isCorrect       Boolean?
+  score           Float?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
 
   @@map("question_responses_v3")
 }
@@ -168,13 +172,11 @@ model QuestionResponse_v3 {
 model Subscription_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   userId          String    @db.ObjectId @unique
-  user            User_v3     @relation("UserSubscription_v3", fields: [userId], references: [id], onDelete: Cascade)
-  stripeCustomerId String?  @unique
-  stripePriceId   String?
-  stripeSubscriptionId String? @unique
-  status          String?
-  currentPeriodStart DateTime?
-  currentPeriodEnd DateTime?
+  user            User_v3   @relation("UserSubscription_v3", fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan_v3
+  status          String    // active, canceled, expired
+  startDate       DateTime
+  endDate         DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -182,13 +184,14 @@ model Subscription_v3 {
 }
 
 model APIKey_v3 {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String    @db.ObjectId
-  user        User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  key         String    @unique
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key             String    @unique
+  name            String?
+  lastUsed        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("api_keys_v3")
 }
@@ -198,16 +201,13 @@ model Exam_v3 {
   title           String
   description     String?
   creatorId       String    @db.ObjectId
-  creator         User_v3     @relation("ExamCreator_v3", fields: [creatorId], references: [id], onDelete: Cascade)
-  gradeBookId     String?   @db.ObjectId
-  gradeBook       GradeBook_v3? @relation("GradeBookExams_v3", fields: [gradeBookId], references: [id])
-  timeLimit       Int?      // Time limit in minutes
-  totalPoints     Float
-  isPublic_v3     Boolean   @default(false)
-  accessCode_v3   String?  // For private exams
+  creator         User_v3   @relation("ExamCreator_v3", fields: [creatorId], references: [id])
   questionSets    ExamQuestionSet_v3[]
   attempts        ExamAttempt_v3[]
-  sharedWithGroups_v3 GroupExam_v3[]
+  groupExams      GroupExam_v3[]
+  timeLimit       Int?      // In minutes
+  startDate       DateTime?
+  endDate         DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -217,14 +217,13 @@ model Exam_v3 {
 model ExamQuestionSet_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   examId          String    @db.ObjectId
-  exam            Exam_v3     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
   questionSetId   String    @db.ObjectId
-  questionSet     QuestionSet_v3  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  order          Int
-  weight         Float     // Weight for scoring
-  timeLimit      Int?      // Optional per-question set time limit
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  order           Int
+  weight          Float     @default(1.0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("exam_question_sets_v3")
 }
@@ -232,16 +231,12 @@ model ExamQuestionSet_v3 {
 model ExamAttempt_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   examId          String    @db.ObjectId
-  exam            Exam_v3     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
   userId          String    @db.ObjectId
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status_v3       String    @default("in_progress") // in_progress, completed
-  score_v3        Float?    // Percentage score
-  grade_v3        String?   // Letter grade if using gradebook
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score           Float?
   startedAt       DateTime  @default(now())
   completedAt     DateTime?
-  timeSpent_v3    Int?     // Time spent in seconds
-  questionSetAttempts_v3 QuizAttempt_v3[] // Reuse quiz attempts for individual question sets
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -250,13 +245,12 @@ model ExamAttempt_v3 {
 
 model GradeBook_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v3   @relation("UserGradeBooks_v3", fields: [userId], references: [id], onDelete: Cascade)
   name            String
   description     String?
   isDefault       Boolean   @default(false)
-  creatorId       String    @db.ObjectId
-  creator         User_v3     @relation("UserGradeBooks_v3", fields: [creatorId], references: [id], onDelete: Cascade)
   ranges          GradeRange_v3[]
-  exams           Exam_v3[] @relation("GradeBookExams_v3")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -266,11 +260,11 @@ model GradeBook_v3 {
 model GradeRange_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   gradeBookId     String    @db.ObjectId
-  gradeBook       GradeBook_v3  @relation(fields: [gradeBookId], references: [id], onDelete: Cascade)
-  grade           String    // e.g., "A", "B+", etc.
-  minScore        Float     // Minimum score for this grade (percentage)
-  maxScore        Float     // Maximum score for this grade (percentage)
-  description     String?   // Optional description of the grade range
+  gradeBook       GradeBook_v3 @relation(fields: [gradeBookId], references: [id], onDelete: Cascade)
+  minScore        Float
+  maxScore        Float
+  grade           String
+  description     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -281,9 +275,8 @@ model Group_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   description     String?
-  type            String    @default("class") // class, team, or other
   creatorId       String    @db.ObjectId
-  creator         User_v3     @relation("GroupCreator_v3", fields: [creatorId], references: [id], onDelete: Cascade)
+  creator         User_v3   @relation("GroupCreator_v3", fields: [creatorId], references: [id])
   members         GroupMember_v3[]
   questionSets    GroupQuestionSet_v3[]
   exams           GroupExam_v3[]
@@ -296,11 +289,11 @@ model Group_v3 {
 model GroupMember_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   groupId         String    @db.ObjectId
-  group           Group_v3    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId          String    @db.ObjectId
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role            String    @default("student") // teacher, student, or member
-  joinedAt        DateTime  @default(now())
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String    // member, admin
+  createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("group_members_v3")
@@ -309,11 +302,10 @@ model GroupMember_v3 {
 model GroupQuestionSet_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   groupId         String    @db.ObjectId
-  group           Group_v3    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   questionSetId   String    @db.ObjectId
-  questionSet     QuestionSet_v3  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  sharedAt        DateTime  @default(now())
-  expiresAt       DateTime?
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("group_question_sets_v3")
@@ -322,39 +314,40 @@ model GroupQuestionSet_v3 {
 model GroupExam_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   groupId         String    @db.ObjectId
-  group           Group_v3    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   examId          String    @db.ObjectId
-  exam            Exam_v3     @relation(fields: [examId], references: [id], onDelete: Cascade)
-  sharedAt        DateTime  @default(now())
-  expiresAt       DateTime?
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("group_exams_v3")
 }
 
 model OnboardingState_v3 {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String    @db.ObjectId @unique
-  user            User_v3     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentStep     Int       @default(1)
-  isComplete      Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @unique @db.ObjectId
+  user        User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role_v3
+  preferences Json?
+  plan        String    @default("free")
+  isComplete  Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("onboarding_states_v3")
 }
 
-enum Role_v3 {
-  SUPER_ADMIN
-  TEACHER
-  LEARNING_MANAGER
-  STUDENT
-  CORPORATE_USER
-  PERSONAL_USER
-  INSTITUTION
-  ADMINISTRATOR
-  DEVELOPER
-  SUPPORT
-  ANALYST
-  MANAGER
+model Usage_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentsCount  Int       @default(0)
+  questionsCount  Int       @default(0)
+  storageUsed     Int       @default(0)  // In bytes
+  tokensUsed      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("usage_v3")
 }

@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const token = searchParams.get('token')
+    const { token } = await req.json()
 
     if (!token) {
       return NextResponse.json(
@@ -14,7 +13,7 @@ export async function GET(req: Request) {
     }
 
     // Find user with token
-    const user = await db.user.findFirst({
+    const user = await db.user_v3.findFirst({
       where: { verificationToken: token }
     })
 
@@ -26,20 +25,23 @@ export async function GET(req: Request) {
     }
 
     // Update user verification status
-    await db.user.update({
+    await db.user_v3.update({
       where: { id: user.id },
       data: {
-        emailVerified: true,
+        emailVerified: new Date(),
         verificationToken: null
       }
     })
 
-    // Redirect to verification success page
-    return NextResponse.redirect(new URL('/auth/verification-success', req.url))
+    return NextResponse.json({ 
+      success: true,
+      email: user.email 
+    })
 
   } catch (error) {
+    console.error('Verification error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to verify email' },
       { status: 500 }
     )
   }

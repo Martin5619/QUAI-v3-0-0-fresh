@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Account_v3 {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User_v3 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts_v3")
+}
+
+model Session_v3 {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User_v3 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions_v3")
+}
+
+enum Role_v3 {
+  PERSONAL_USER
+  STUDENT
+  TEACHER
+  INSTITUTION_ADMIN
+  SYSTEM_ADMIN
+}
+
+enum Plan_v3 {
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
+}
+
+enum AccountState_v3 {
+  CREATED           // Initial state after registration
+  EMAIL_PENDING     // Waiting for email verification
+  EMAIL_VERIFIED    // Email verified, ready for onboarding
+  ONBOARDING       // In onboarding process
+  ACTIVE           // Completed onboarding, fully active
+  SUSPENDED        // Account suspended
+  DELETED          // Soft deleted
+}
+
+model User_v3 {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  email             String          @unique
+  emailVerified     DateTime?
+  firstName         String?
+  lastName          String?
+  image             String?
+  password          String?
+  verificationToken String?         
+  resetToken        String?         
+  resetTokenExpiry  DateTime?
+  role              Role_v3?
+  plan              Plan_v3?
+  accountState      AccountState_v3 @default(CREATED)
+  preferences       Json?           // Added from full schema
+  documents         Document_v3[]   // Added from full schema
+  accounts          Account_v3[]
+  sessions          Session_v3[]
+  usage            Usage_v3?
+  onboarding       OnboardingState_v3?
+  quizAttempts     QuizAttempt_v3[]
+  examAttempts     ExamAttempt_v3[]
+  subscription     Subscription_v3?  @relation("UserSubscription_v3")
+  apiKeys          APIKey_v3[]
+  groupMemberships GroupMember_v3[]
+  createdGroups    Group_v3[] @relation("GroupCreator_v3")
+  createdExams     Exam_v3[] @relation("ExamCreator_v3")
+  gradeBooks       GradeBook_v3[] @relation("UserGradeBooks_v3")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("users_v3")
+}
+
+model Document_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  title           String
+  content         String
+  type            String    // PDF, DOC, etc.
+  size            Int       // In bytes
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("documents_v3")
+}
+
+model Usage_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId @unique
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentsCount  Int       @default(0)
+  questionsCount  Int       @default(0)
+  storageUsed     Int       @default(0)  // In bytes
+  tokensUsed      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("usage_v3")
+}
+
+model QuestionSet_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String?
+  questions       Question_v3[]
+  quizAttempts    QuizAttempt_v3[]
+  examQuestionSets ExamQuestionSet_v3[]
+  groupQuestionSets GroupQuestionSet_v3[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("question_sets_v3")
+}
+
+model Question_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  content         String
+  type            String    // MCQ, Essay, etc.
+  answers         Json?     // For MCQ options
+  correctAnswer   String?   // For MCQ correct option
+  responses       QuestionResponse_v3[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("questions_v3")
+}
+
+model QuizAttempt_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  responses       QuestionResponse_v3[]
+  score          Float?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("quiz_attempts_v3")
+}
+
+model QuestionResponse_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  quizAttemptId   String    @db.ObjectId
+  quizAttempt     QuizAttempt_v3 @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  questionId      String    @db.ObjectId
+  question        Question_v3 @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  response        String
+  isCorrect       Boolean?
+  score           Float?
+  createdAt       DateTime  @default(now())
+
+  @@map("question_responses_v3")
+}
+
+model Subscription_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId @unique
+  user            User_v3   @relation("UserSubscription_v3", fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan_v3
+  status          String    // active, canceled, expired
+  startDate       DateTime
+  endDate         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("subscriptions_v3")
+}
+
+model APIKey_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key             String    @unique
+  name            String?
+  lastUsed        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("api_keys_v3")
+}
+
+model Exam_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String?
+  creatorId       String    @db.ObjectId
+  creator         User_v3   @relation("ExamCreator_v3", fields: [creatorId], references: [id])
+  questionSets    ExamQuestionSet_v3[]
+  attempts        ExamAttempt_v3[]
+  groupExams      GroupExam_v3[]
+  timeLimit       Int?      // In minutes
+  startDate       DateTime?
+  endDate         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("exams_v3")
+}
+
+model ExamQuestionSet_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  examId          String    @db.ObjectId
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  order           Int
+  weight          Float     @default(1.0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("exam_question_sets_v3")
+}
+
+model ExamAttempt_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  examId          String    @db.ObjectId
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score           Float?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("exam_attempts_v3")
+}
+
+model GradeBook_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  user            User_v3   @relation("UserGradeBooks_v3", fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  isDefault       Boolean   @default(false)
+  ranges          GradeRange_v3[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("grade_books_v3")
+}
+
+model GradeRange_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  gradeBookId     String    @db.ObjectId
+  gradeBook       GradeBook_v3 @relation(fields: [gradeBookId], references: [id], onDelete: Cascade)
+  minScore        Float
+  maxScore        Float
+  grade           String
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("grade_ranges_v3")
+}
+
+model Group_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  creatorId       String    @db.ObjectId
+  creator         User_v3   @relation("GroupCreator_v3", fields: [creatorId], references: [id])
+  members         GroupMember_v3[]
+  questionSets    GroupQuestionSet_v3[]
+  exams           GroupExam_v3[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("groups_v3")
+}
+
+model GroupMember_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String    // member, admin
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_members_v3")
+}
+
+model GroupQuestionSet_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  questionSetId   String    @db.ObjectId
+  questionSet     QuestionSet_v3 @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_question_sets_v3")
+}
+
+model GroupExam_v3 {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupId         String    @db.ObjectId
+  group           Group_v3  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  examId          String    @db.ObjectId
+  exam            Exam_v3   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("group_exams_v3")
+}
+
+model OnboardingState_v3 {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @unique @db.ObjectId
+  user        User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role_v3
+  preferences Json?
+  plan        String    @default("free")
+  isComplete  Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("onboarding_states_v3")
+}

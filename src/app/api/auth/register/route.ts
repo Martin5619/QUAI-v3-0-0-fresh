@@ -1,150 +1,149 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { Role_v3, Prisma } from "@prisma/client"
-import bcrypt from "bcryptjs"
+import { hash } from "bcrypt"
+import { PrismaClient } from '@prisma/client'
+import { registerSchema } from "@/lib/validations/auth"
 import { z } from "zod"
 
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-      "Password must contain uppercase, lowercase, number and special character"
-    )
-})
+const prisma = new PrismaClient()
 
 export async function POST(req: Request) {
-  console.log("Starting registration process")
-
   try {
-    // 1. Parse request body
-    const rawBody = await req.text()
-    console.log("Raw request body:", rawBody)
-
-    let body
+    console.log('Starting registration process...')
+    
+    // Parse request body with error handling
+    let json
     try {
-      body = JSON.parse(rawBody)
+      json = await req.json()
+      console.log('Request body:', { 
+        ...json, 
+        password: '[REDACTED]', 
+        confirmPassword: '[REDACTED]' 
+      })
     } catch (parseError) {
-      console.error("Failed to parse request body:", parseError)
+      console.error('Failed to parse request body:', parseError)
       return NextResponse.json(
-        { error: "Invalid request body" },
+        { error: "Invalid request format" },
         { status: 400 }
       )
     }
 
-    // 2. Validate data
-    console.log("Validating request data:", { ...body, password: "[REDACTED]" })
-    
-    const validationResult = registerSchema.safeParse(body)
-    if (!validationResult.success) {
-      console.error("Validation error:", validationResult.error)
-      return NextResponse.json(
-        { error: validationResult.error.errors[0].message },
-        { status: 400 }
-      )
-    }
-
-    const { email, password, name } = validationResult.data
-
-    // 3. Check if user exists
-    console.log("Checking if user exists:", email)
-    
+    // Validate with schema
     try {
-      const existingUser = await db.user_v3.findUnique({
-        where: { email }
+      const body = registerSchema.parse(json)
+      console.log('Validation passed')
+
+      // Check if user exists
+      console.log('Checking for existing user with email:', body.email)
+      console.log('Database URL format check:', {
+        isDefined: !!process.env.DATABASE_URL,
+        length: process.env.DATABASE_URL?.length,
+        startsWithMongodb: process.env.DATABASE_URL?.startsWith('mongodb'),
       })
 
-      if (existingUser) {
-        console.log("User already exists:", email)
+      let existingUser = null
+      try {
+        // Try to connect first
+        await prisma.$connect()
+        console.log('Connected to database')
+
+        // Then query
+        existingUser = await prisma.user_v3.findUnique({
+          where: { email: body.email },
+          select: { id: true, email: true, accountState: true }
+        })
+        console.log('Direct Prisma query completed. Result:', existingUser)
+      } catch (findError) {
+        console.error('Error checking for existing user:', {
+          error: findError,
+          name: findError.name,
+          message: findError.message,
+          code: findError.code,
+          meta: findError.meta,
+          stack: findError.stack
+        })
         return NextResponse.json(
-          { error: "An account with this email already exists" },
+          { error: `Database error: ${findError.message}` },
+          { status: 500 }
+        )
+      }
+
+      if (existingUser) {
+        console.log('User exists with state:', existingUser.accountState)
+        return NextResponse.json(
+          { error: "This email is already registered" },
           { status: 400 }
         )
       }
 
-      // 4. Create user with onboarding state
-      console.log("Creating new user:", email)
-      
-      const hashedPassword = await bcrypt.hash(password, 12)
-      
-      const user = await db.$transaction(async (tx) => {
-        // Create user with all required relations
-        const newUser = await tx.user_v3.create({
+      console.log('Hashing password...')
+      const hashedPassword = await hash(body.password, 10)
+
+      console.log('Creating new user...')
+      try {
+        const user = await prisma.user_v3.create({
           data: {
-            email,
+            email: body.email,
             password: hashedPassword,
-            name,
-            role: Role_v3.PERSONAL_USER, // Default to personal user for free tier
-            emailVerified: new Date(),
-            usage: {
-              create: {
-                documentsCount: 0,
-                questionsCount: 0,
-                storageUsed: 0,
-                tokensUsed: 0
-              }
-            },
-            onboarding: {
-              create: {
-                currentStep: 1,
-                isComplete: false
-              }
-            }
+            firstName: body.firstName,
+            lastName: body.lastName,
+            role: 'PERSONAL_USER',
+            plan: 'FREE',
+            accountState: 'EMAIL_PENDING',
+            resetToken: null,  
+            resetTokenExpiry: null,  
+            verificationToken: null  
           },
-          include: {
-            usage: true,
-            onboarding: true
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            accountState: true
           }
         })
+        console.log('User created successfully:', { ...user, password: '[REDACTED]' })
 
-        return newUser
-      })
-
-      console.log("User created successfully:", { id: user.id, email: user.email })
-
-      return NextResponse.json(
-        {
+        const response = { 
           success: true,
+          message: "Account created successfully. Please verify your email to continue.",
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            firstName: user.firstName,
+            lastName: user.lastName
           }
-        },
-        { status: 201 }
-      )
-    } catch (dbError) {
-      console.error("Database error:", dbError)
-      
-      if (dbError instanceof Prisma.PrismaClientKnownRequestError) {
-        if (dbError.code === 'P2002') {
-          return NextResponse.json(
-            { error: "An account with this email already exists" },
-            { status: 400 }
-          )
         }
+        console.log('Sending response:', response)
+        return NextResponse.json(response)
+      } catch (createError) {
+        console.error('Error creating user:', {
+          error: createError,
+          name: createError.name,
+          message: createError.message,
+          code: createError.code,
+          meta: createError.meta,
+          stack: createError.stack
+        })
+        return NextResponse.json(
+          { error: `Database error: ${createError.message}` },
+          { status: 500 }
+        )
       }
-      
+
+    } catch (validationError) {
+      console.error('Validation error:', validationError)
       return NextResponse.json(
-        { 
-          error: "Database error",
-          details: dbError instanceof Error ? dbError.message : "Unknown error"
-        },
-        { status: 500 }
+        { error: "Invalid input data" },
+        { status: 400 }
       )
     }
   } catch (error) {
-    console.error("Unhandled registration error:", error)
-    
+    console.error('Unexpected error:', error)
     return NextResponse.json(
-      { 
-        error: "Failed to create account",
-        details: error instanceof Error ? error.message : "Unknown error"
-      },
+      { error: "An unexpected error occurred" },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }

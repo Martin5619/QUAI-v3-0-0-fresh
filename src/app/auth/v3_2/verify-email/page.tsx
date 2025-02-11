@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { Icons } from "@/components/icons"
+import { Icons } from "@/components/ui/icons"
 
 export default function VerifyEmailPage() {
   const router = useRouter()
@@ -11,82 +11,69 @@ export default function VerifyEmailPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const autoSignIn = async () => {
+    const signInWithStoredCredentials = async () => {
       try {
-        // Get stored credentials
         const storedData = sessionStorage.getItem('pendingSignup')
         if (!storedData) {
-          setError("No pending registration found")
-          setIsLoading(false)
-          return
+          throw new Error("No pending registration found")
         }
 
         const { email, password } = JSON.parse(storedData)
-
-        // Attempt to sign in
+        
         const result = await signIn("credentials", {
           email,
           password,
           redirect: false
         })
 
-        // Clear stored credentials
-        sessionStorage.removeItem('pendingSignup')
-
-        if (result?.error) {
-          throw new Error(result.error)
+        if (!result?.ok) {
+          throw new Error(result?.error || "Failed to sign in")
         }
 
-        // Redirect to onboarding
+        sessionStorage.removeItem('pendingSignup')
         router.push("/onboarding/v3_2")
-      } catch (err) {
-        console.error("Auto sign-in error:", err)
-        setError(err instanceof Error ? err.message : "Failed to complete registration")
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "An error occurred")
         setIsLoading(false)
       }
     }
 
-    autoSignIn()
+    signInWithStoredCredentials()
   }, [router])
 
   if (error) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center">
-        <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center text-center">
-          <Icons.warning className="h-10 w-10 text-destructive" />
-          <h2 className="mt-4 text-2xl font-bold">Verification Failed</h2>
-          <p className="mb-4 mt-2 text-muted-foreground">{error}</p>
-          <button
-            className="text-primary hover:underline"
-            onClick={() => router.push("/auth/v3_2/signin")}
-          >
-            Back to Sign In
-          </button>
+      <div className="container flex h-screen w-full flex-col items-center justify-center">
+        <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+          <div className="flex flex-col items-center space-y-4">
+            <Icons.warning className="h-8 w-8 text-red-500" />
+            <div className="flex flex-col space-y-2 text-center">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Registration Failed
+              </h1>
+              <p className="text-sm text-muted-foreground">{error}</p>
+              <button
+                onClick={() => router.push("/auth/v3_2/signin")}
+                className="text-primary hover:underline"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center">
-      <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center text-center">
-        {isLoading ? (
-          <>
-            <Icons.spinner className="h-10 w-10 animate-spin" />
-            <h2 className="mt-4 text-2xl font-bold">Completing Registration</h2>
-            <p className="mb-4 mt-2 text-muted-foreground">
-              Please wait while we verify your account...
-            </p>
-          </>
-        ) : (
-          <>
-            <Icons.check className="h-10 w-10 text-green-500" />
-            <h2 className="mt-4 text-2xl font-bold">Email Verified</h2>
-            <p className="mb-4 mt-2 text-muted-foreground">
-              Your email has been verified. Redirecting to onboarding...
-            </p>
-          </>
-        )}
+    <div className="container flex h-screen w-full flex-col items-center justify-center">
+      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+        <div className="flex flex-col items-center space-y-4">
+          <Icons.spinner className="h-8 w-8 animate-spin" />
+          <p className="text-sm text-muted-foreground">
+            Completing registration...
+          </p>
+        </div>
       </div>
     </div>
   )
