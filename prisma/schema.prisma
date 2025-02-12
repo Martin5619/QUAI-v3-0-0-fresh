@@ -77,7 +77,8 @@ model User_v3 {
   plan              Plan_v3?
   accountState      AccountState_v3 @default(CREATED)
   preferences       Json?           // Added from full schema
-  documents         Document_v3[]   // Added from full schema
+  documents         Document_v3[]
+  questionSets      QuestionSet_v3[]
   accounts          Account_v3[]
   sessions          Session_v3[]
   usage            Usage_v3?
@@ -100,13 +101,19 @@ model Document_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   userId          String    @db.ObjectId
   title           String
-  content         String
-  type            String    // PDF, DOC, etc.
-  size            Int       // In bytes
+  content         String    @db.String
+  type            String    // PDF, DOC, URL, etc.
+  size            Int       // In bytes, 0 for URLs
+  url             String?   // For URL-based documents
+  sourceType      String    @default("file") // "file" or "url"
+  previewAvailable Boolean  @default(false)
+  preview         String?   @db.String  // Cached preview content
   user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSets    DocumentToQuestionSet[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([userId])
   @@map("documents_v3")
 }
 
@@ -114,14 +121,30 @@ model QuestionSet_v3 {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   title           String
   description     String?
+  userId          String    @db.ObjectId
+  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question_v3[]
   quizAttempts    QuizAttempt_v3[]
   examQuestionSets ExamQuestionSet_v3[]
   groupQuestionSets GroupQuestionSet_v3[]
+  documents       DocumentToQuestionSet[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([userId])
   @@map("question_sets_v3")
+}
+
+model DocumentToQuestionSet {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  documentId      String          @db.ObjectId
+  document        Document_v3     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  questionSetId   String          @db.ObjectId
+  questionSet     QuestionSet_v3  @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+
+  @@unique([documentId, questionSetId])
+  @@map("document_to_question_set_v3")
 }
 
 model Question_v3 {
@@ -339,15 +362,14 @@ model OnboardingState_v3 {
 }
 
 model Usage_v3 {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String    @unique @db.ObjectId
-  user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documentsCount  Int       @default(0)
-  questionsCount  Int       @default(0)
-  storageUsed     Int       @default(0)  // In bytes
-  tokensUsed      Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String    @db.ObjectId @unique
+  documentsUsed     Int       @default(0)
+  questionsGenerated Int      @default(0)
+  storageUsed       Int       @default(0)  // In bytes
+  tokensUsed        Int       @default(0)
+  lastReset         DateTime  @default(now())
+  user              User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("usage_v3")
 }
