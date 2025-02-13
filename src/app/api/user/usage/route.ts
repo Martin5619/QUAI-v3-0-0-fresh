@@ -23,14 +23,14 @@ export async function POST(request: Request) {
       },
       create: {
         userId: session.user.id,
-        documentsCount: usage.documents || 0,
-        questionsCount: usage.questions || 0,
+        documentsUsed: usage.documents || 0,
+        questionsGenerated: usage.questions || 0,
         storageUsed: usage.storage || 0,
         tokensUsed: usage.tokens || 0
       },
       update: {
-        documentsCount: usage.documents || 0,
-        questionsCount: usage.questions || 0,
+        documentsUsed: usage.documents || 0,
+        questionsGenerated: usage.questions || 0,
         storageUsed: usage.storage || 0,
         tokensUsed: usage.tokens || 0,
         updatedAt: new Date()

@@ -6,9 +6,26 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
-const prismaClient = new PrismaClient({
-  log: ['error'],
-})
+export function createPrismaClient() {
+  return new PrismaClient({
+    log: [
+      { level: 'query', emit: 'event' },
+      { level: 'error', emit: 'stdout' },
+      { level: 'info', emit: 'stdout' },
+      { level: 'warn', emit: 'stdout' },
+    ],
+  })
+}
+
+const prismaClient = globalForPrisma.prisma || createPrismaClient()
+
+// Add query logging in development
+if (process.env.NODE_ENV === 'development') {
+  prismaClient.$on('query', (e) => {
+    console.log('Query:', e.query)
+    console.log('Duration:', e.duration + 'ms')
+  })
+}
 
 // Middleware to sync userId_v2414 with id
 prismaClient.$use(async (params, next) => {
@@ -62,6 +79,24 @@ prismaClient.$use(async (params, next) => {
   return next(params)
 })
 
-export const prisma = globalForPrisma.prisma || prismaClient
+// Error handling middleware
+prismaClient.$use(async (params, next) => {
+  try {
+    return await next(params)
+  } catch (error) {
+    console.error('Prisma Error:', {
+      model: params.model,
+      action: params.action,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : error
+    })
+    throw error
+  }
+})
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prismaClient
+
+export default prismaClient

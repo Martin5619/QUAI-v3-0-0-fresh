@@ -14,7 +14,7 @@ export async function trackUsage(userId: string, type: UsageType, count: number 
 
     // If multiple records exist, merge them into one
     if (existingUsages.length > 1) {
-      const totalDocuments = existingUsages.reduce((sum, usage) => sum + (usage.documentsCount || 0), 0);
+      const totalDocuments = existingUsages.reduce((sum, usage) => sum + (usage.documentsUsed || 0), 0);
       const totalQuestions = existingUsages.reduce((sum, usage) => sum + (usage.questionsCount || 0), 0);
 
       // Delete all existing records
@@ -26,7 +26,7 @@ export async function trackUsage(userId: string, type: UsageType, count: number 
       return await prisma.usage_v2414.create({
         data: {
           userId,
-          documentsCount: totalDocuments + (type === 'document_upload' ? count : 0),
+          documentsUsed: totalDocuments + (type === 'document_upload' ? count : 0),
           questionsCount: totalQuestions + (type === 'question_create' ? count : 0),
           lastUpdated: new Date(),
           createdAt: new Date()
@@ -40,13 +40,13 @@ export async function trackUsage(userId: string, type: UsageType, count: number 
         userId: userId
       },
       update: {
-        ...(type === 'document_upload' ? { documentsCount: { increment: count } } : {}),
+        ...(type === 'document_upload' ? { documentsUsed: { increment: count } } : {}),
         ...(type === 'question_create' ? { questionsCount: { increment: count } } : {}),
         lastUpdated: new Date()
       },
       create: {
         userId,
-        documentsCount: type === 'document_upload' ? count : 0,
+        documentsUsed: type === 'document_upload' ? count : 0,
         questionsCount: type === 'question_create' ? count : 0,
         lastUpdated: new Date(),
         createdAt: new Date()
@@ -92,9 +92,9 @@ export async function checkUsage(req: NextRequest): Promise<{ allowed: boolean, 
 
     const plan = user.plan || 'free'
     const limits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS]
-    const usage = user.usage_v2414 || { documentsCount: 0, questionsCount: 0 }
+    const usage = user.usage_v2414 || { documentsUsed: 0, questionsCount: 0 }
 
-    if (usage.documentsCount >= limits.documentsPerMonth) {
+    if (usage.documentsUsed >= limits.documentsPerMonth) {
       return { 
         allowed: false, 
         error: `Monthly document limit (${limits.documentsPerMonth}) reached` 

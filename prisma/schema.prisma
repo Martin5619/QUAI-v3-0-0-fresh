@@ -135,7 +135,7 @@ model Document_v3 {
   userId          String    @db.ObjectId
   title           String
   content         String
-  type            String    // PDF, DOC, etc.
+  documentType    String    // PDF, DOC, etc.
   size            Int       // In bytes
   user            User_v3   @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime  @default(now())

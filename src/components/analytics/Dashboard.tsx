@@ -181,7 +181,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.documentsCount}</div>
+            <div className="text-2xl font-bold">{metrics.documentsUsed}</div>
           </CardContent>
         </Card>
 

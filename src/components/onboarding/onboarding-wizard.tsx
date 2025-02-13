@@ -220,8 +220,8 @@ export function OnboardingWizard({ user }: OnboardingWizardProps) {
           preferences: state.data.preferences,
           plan: (state.data.plan || 'FREE').toUpperCase(),
           usage: {
-            documentsCount: usageData.documents || 0,
-            questionsCount: usageData.questions || 0,
+            documentsUsed: usageData.documents || 0,
+            questionsGenerated: usageData.questions || 0,
             storageUsed: usageData.storage || 0,
             tokensUsed: usageData.tokens || 0
           }
