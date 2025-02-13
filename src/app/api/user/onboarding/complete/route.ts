@@ -6,8 +6,8 @@ import { z } from "zod"
 
 // Define validation schema
 const usageSchema = z.object({
-  documentsCount: z.number().min(0),
-  questionsCount: z.number().min(0),
+  documentsUsed: z.number().min(0),
+  questionsGenerated: z.number().min(0),
   storageUsed: z.number().min(0),
   tokensUsed: z.number().min(0)
 })
@@ -21,7 +21,7 @@ const preferencesSchema = z.object({
 const onboardingSchema = z.object({
   role: z.enum(["PERSONAL_USER", "STUDENT", "TEACHER", "INSTITUTION_ADMIN", "SYSTEM_ADMIN"]),
   preferences: preferencesSchema.optional(),
-  plan: z.enum(["FREE", "PRO", "TEAM"]),
+  plan: z.string().transform(plan => plan.toUpperCase() as "FREE" | "PRO" | "TEAM"),
   usage: usageSchema
 })
 
@@ -34,6 +34,8 @@ export async function POST(request: Request) {
 
     // Parse and validate request data
     const rawData = await request.json()
+    console.log("[ONBOARDING_COMPLETE] Raw data:", rawData)
+    
     const validationResult = onboardingSchema.safeParse(rawData)
     
     if (!validationResult.success) {
@@ -45,69 +47,63 @@ export async function POST(request: Request) {
     }
 
     const data = validationResult.data
+    console.log("[ONBOARDING_COMPLETE] Validated data:", data)
 
-    // Convert notifications enum to boolean
-    const preferences = data.preferences ? {
-      ...data.preferences,
-      notifications: data.preferences.notifications === 'all' || data.preferences.notifications === 'important'
-    } : undefined
-
-    // First update the user's core data
-    const user = await db.User_v3.update({
-      where: { id: session.user.id },
-      data: {
-        accountState: "ACTIVE",
-        role: data.role,
-        preferences,
-        plan: data.plan,
-        usage: {
-          create: {
-            documentsCount: data.usage.documentsCount,
-            questionsCount: data.usage.questionsCount,
-            storageUsed: data.usage.storageUsed,
-            tokensUsed: data.usage.tokensUsed
-          }
+    // Update user and onboarding state in a transaction
+    const result = await db.$transaction([
+      // Update user with role and plan
+      db.user_v3.update({
+        where: { id: session.user.id },
+        data: {
+          role: data.role,
+          plan: data.plan,
+          preferences: data.preferences || {},
+          accountState: "ACTIVE"
         }
-      }
+      }),
+      
+      // Upsert onboarding state
+      db.onboardingState_v3.upsert({
+        where: { userId: session.user.id },
+        create: {
+          userId: session.user.id,
+          isComplete: true,
+          currentStep: "completed",
+          updatedAt: new Date()
+        },
+        update: {
+          isComplete: true,
+          currentStep: "completed",
+          updatedAt: new Date()
+        }
+      }),
+
+      // Create or update usage record
+      db.usage_v3.upsert({
+        where: { userId: session.user.id },
+        create: {
+          userId: session.user.id,
+          ...data.usage
+        },
+        update: data.usage
+      })
+    ])
+
+    console.log("[ONBOARDING_COMPLETE] Transaction result:", result)
+    console.log("[ONBOARDING_COMPLETE] User updated:", result[0])
+    console.log("[ONBOARDING_COMPLETE] Onboarding state updated:", result[1])
+    console.log("[ONBOARDING_COMPLETE] Usage record updated:", result[2])
+    return NextResponse.json({
+      success: true,
+      user: result[0],
+      onboarding: result[1],
+      usage: result[2]
     })
 
-    // Then update or create the onboarding state
-    await db.OnboardingState_v3.upsert({
-      where: {
-        userId: session.user.id
-      },
-      create: {
-        userId: session.user.id,
-        role: data.role,
-        preferences: data.preferences || {},
-        plan: data.plan,
-        isComplete: true,
-        completedAt: new Date()
-      },
-      update: {
-        role: data.role,
-        preferences: data.preferences || {},
-        plan: data.plan,
-        isComplete: true,
-        completedAt: new Date()
-      }
-    })
-
-    console.log(`[${new Date().toISOString()}] Onboarding completed for user ${session.user.id}`)
-    return NextResponse.json(user)
   } catch (error) {
     console.error("[ONBOARDING_COMPLETE_ERROR]", error)
-    
-    // Handle Prisma errors specifically
-    if (error instanceof Error && error.name === "PrismaClientKnownRequestError") {
-      return new NextResponse(
-        "Failed to update user data. Please try again.",
-        { status: 500 }
-      )
-    }
-    
     return new NextResponse(
-      error instanceof Error ? error.message : "Internal Server Error",
+      `Internal server error during onboarding completion: ${error.message} - ${error.stack}`,
       { status: 500 }
     )
   }
